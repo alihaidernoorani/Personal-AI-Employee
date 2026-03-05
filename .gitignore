@@ -1,0 +1,30 @@
+# Environment & secrets
+.env
+*.pem
+*.key
+credentials.json
+token.json
+
+# WhatsApp session
+whatsapp_session/
+*.session
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Obsidian workspace state (optional — remove if you want to sync these)
+AI_Employee_Vault/.obsidian/workspace.json
+AI_Employee_Vault/.obsidian/workspace-mobile.json

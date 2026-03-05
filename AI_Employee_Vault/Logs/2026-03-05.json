@@ -1,0 +1,1 @@
+{"timestamp": "2026-03-05T20:10:44.338465Z", "action_type": "file_drop_detected", "actor": "FilesystemWatcher", "target": "test_invoice.txt", "parameters": {"dest": "FILE_20260305T201044Z_test_invoice.txt"}, "approval_status": "auto", "approved_by": "system", "result": "success"}
