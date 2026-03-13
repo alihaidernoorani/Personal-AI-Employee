@@ -9,6 +9,7 @@ Usage:
     VAULT_PATH=/path/to/AI_Employee_Vault python filesystem_watcher.py
 """
 
+import json
 import os
 import shutil
 import sys
@@ -55,6 +56,25 @@ class FilesystemWatcher(BaseWatcher):
         self.inbox = self.vault_path / "Inbox"
         self.inbox.mkdir(parents=True, exist_ok=True)
         self._observer = None
+        # Idempotency registry — tracks filenames already processed
+        self._registry_path = Path(__file__).parent.parent / "scripts" / "processed_inbox.json"
+        self._processed: set[str] = self._load_registry()
+
+    def _load_registry(self) -> set:
+        """Load processed filenames from the idempotency registry."""
+        try:
+            data = json.loads(self._registry_path.read_text(encoding="utf-8"))
+            return set(data.get("processed", []))
+        except (FileNotFoundError, json.JSONDecodeError):
+            return set()
+
+    def _save_registry(self) -> None:
+        """Persist updated processed list to disk."""
+        self._registry_path.parent.mkdir(parents=True, exist_ok=True)
+        self._registry_path.write_text(
+            json.dumps({"processed": sorted(self._processed)}, indent=2),
+            encoding="utf-8",
+        )
 
     def check_for_updates(self) -> list:
         # Watchdog handles detection via events; this is a no-op for the base loop.
@@ -62,6 +82,11 @@ class FilesystemWatcher(BaseWatcher):
 
     def create_action_file(self, source: Path) -> Path:
         """Copy source file into Needs_Action and write a metadata .md file."""
+        # Idempotency check — skip files already processed
+        if source.name in self._processed:
+            self.logger.info(f"Already processed, skipping: {source.name}")
+            return None
+
         timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
         safe_stem = source.stem.replace(" ", "_")
         dest_name = f"FILE_{timestamp}_{safe_stem}{source.suffix}"
@@ -102,6 +127,11 @@ A new file was detected in the Inbox and is ready for review.
 """
         meta_path.write_text(content, encoding="utf-8")
         self.log_action("file_drop_detected", source.name, "success", {"dest": dest_name})
+
+        # Register as processed for idempotency
+        self._processed.add(source.name)
+        self._save_registry()
+
         return meta_path
 
     def run(self):
