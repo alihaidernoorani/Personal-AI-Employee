@@ -2,89 +2,171 @@
 name: process-needs-action
 description: |
   Processes all pending items in the AI_Employee_Vault/Needs_Action/ folder.
-  Reads each .md file, determines the required action, executes safe actions
-  directly, flags sensitive actions for human approval, updates Dashboard.md,
-  and moves completed files to /Done/. Use this skill whenever new items
-  appear in Needs_Action or on a scheduled basis.
+  Reads Company_Handbook.md first, then for each pending task creates a
+  Plans/PLAN_*.md file, moves the source task to Done/, updates Dashboard.md,
+  and appends NDJSON audit logs. Use this skill whenever new items appear in
+  Needs_Action or on a scheduled basis.
 ---
 
 # Process Needs Action
 
-Read the vault's pending items and take appropriate action on each one.
+Process every pending item in the vault through a six-step workflow.
+
+---
 
 ## Step 1 — Read the Rules
 
-Before doing anything, read `AI_Employee_Vault/Company_Handbook.md` to load
-the current rules of engagement.
+Before doing anything else, read `AI_Employee_Vault/Company_Handbook.md` to
+load the current rules of engagement. All decisions in Steps 3–5 must respect
+these rules.
+
+---
 
 ## Step 2 — Inventory Needs_Action
 
-List all `.md` files in `AI_Employee_Vault/Needs_Action/`. Skip files that
-start with `_` (already claimed). Sort by priority (urgent → high → normal → low),
-then by `received` timestamp ascending (oldest first).
+List all `.md` files in `AI_Employee_Vault/Needs_Action/`. Skip any file whose
+name starts with `_` (draft/claimed) or `ERROR_` (already failed).
+
+Sort the remaining files by:
+1. `priority` field in YAML frontmatter: `urgent` → `high` → `normal` → `low`
+2. `received` timestamp ascending (oldest first) as tiebreaker.
+
+---
 
 ## Step 3 — Process Each Item
 
-For each `.md` file found:
+For each `.md` file in the sorted list, do the following. If any sub-step
+fails, follow the **Error Path** at the bottom of this section instead.
 
-1. **Read** the file and parse the YAML frontmatter (`type`, `priority`, `status`).
-2. **Decide** what action is needed based on `type`:
-   - `file_drop` → Review the file, summarise its contents, determine if any
-     follow-up is required.
-   - `email` → Draft a reply according to Company_Handbook communication rules.
-   - `error` → Log and alert; do not auto-resolve.
-   - Unknown type → Flag for human review.
-3. **Act** based on Company_Handbook approval rules:
-   - Safe actions (drafts, summaries, internal notes) → execute directly.
-   - Sensitive actions (sends, payments, deletes) → write an approval request
-     to `AI_Employee_Vault/Pending_Approval/` instead.
-4. **Move** the processed `.md` file to `AI_Employee_Vault/Done/` once handled.
-   Rename with a `DONE_` prefix: `DONE_<original_filename>`.
+### 3a. Read and Parse
 
-## Step 4 — Update Dashboard.md
+Read the file and extract the YAML frontmatter (`type`, `priority`, `status`,
+`original_name`, `received`).
 
-After processing all items, rewrite the dynamic sections of
-`AI_Employee_Vault/Dashboard.md`:
+### 3b. Determine Action by Type
 
-- Set `<!-- AI_EMPLOYEE:UPDATED -->` to the current UTC timestamp.
-- Count files in `/Needs_Action/`, `/Done/` (today), `/Inbox/` and update
-  the corresponding `<!-- AI_EMPLOYEE:*_COUNT -->` placeholders.
-- Replace `<!-- AI_EMPLOYEE:ACTIVE_ITEMS -->` with a bullet list of any items
-  still in Needs_Action (if none, keep the default italic note).
-- Replace `<!-- AI_EMPLOYEE:RECENT_COMPLETIONS -->` with the last 5 items
-  moved to Done (filename + one-line summary).
+| `type`      | Action |
+|-------------|--------|
+| `file_drop` | Read the copied file in `Needs_Action/`. Summarise its contents and determine if any follow-up is required per Company_Handbook rules. |
+| `email`     | Draft a reply following Company_Handbook Communication Standards. |
+| `error`     | Log and alert; do not auto-resolve. Flag for human review. |
+| _(unknown)_ | Flag for human review with a note explaining the unknown type. |
 
-## Step 5 — Log the Session
+### 3c. Write Plan File
 
-Append one JSON line per processed item to
-`AI_Employee_Vault/Logs/YYYY-MM-DD.json` using this schema:
+Create `AI_Employee_Vault/Plans/PLAN_<timestamp>_<original-stem>.md` where
+`<timestamp>` is the current UTC time as `YYYYMMDDTHHMMSSz` and
+`<original-stem>` is the stem of the source task file (without the `.md`
+extension).
+
+The plan file MUST follow this structure:
+
+```markdown
+---
+type: plan
+source_task: <source task filename>
+created_at: <ISO-8601 UTC timestamp>
+requires_approval: false
+status: draft
+---
+
+## Summary
+
+<One paragraph describing what this task is and what was decided.>
+
+## Analysis
+
+<Key findings from reading the task file and applying Handbook rules.>
+
+## Actions
+
+<For each safe action, write a standard checkbox:>
+- [ ] <Action description>
+
+<For each sensitive action (external comms, financial, deletions), write an approval checkbox:>
+- [ ] APPROVE: <Action description>
+
+## Notes
+
+<Any caveats, edge cases, or information the human reviewer should know.>
+```
+
+Use `- [ ] APPROVE:` only for actions that require explicit human sign-off per
+the Company_Handbook Human-in-the-Loop Rules. If no sensitive actions are
+needed, omit `APPROVE` lines entirely.
+
+### Error Path (if processing a file fails)
+
+1. Create `AI_Employee_Vault/Needs_Action/ERROR_<timestamp>_<original-stem>.md`
+   with a description of what failed and why.
+2. Append a log entry with `"result": "failure"` (see Step 5 schema).
+3. Continue processing the remaining files — do not stop.
+
+---
+
+## Step 4 — Move Task to Done
+
+After successfully writing the Plan file for a task:
+
+Move the source `.md` file from `AI_Employee_Vault/Needs_Action/<filename>`
+to `AI_Employee_Vault/Done/DONE_<filename>` (prepend `DONE_` and preserve the
+rest of the original filename exactly).
+
+---
+
+## Step 5 — Update Dashboard.md
+
+After all tasks are processed, rewrite `AI_Employee_Vault/Dashboard.md`
+dynamic tokens. If `Dashboard.md` is missing, create it from scratch with
+the full token structure below.
+
+Replace each token with live data:
+
+| Token | Replacement |
+|-------|-------------|
+| `<!-- AI_EMPLOYEE:UPDATED -->` | Current UTC timestamp in ISO-8601 format |
+| `<!-- AI_EMPLOYEE:NEEDS_ACTION_COUNT -->` | Count of `.md` files currently in `Needs_Action/` |
+| `<!-- AI_EMPLOYEE:DONE_TODAY_COUNT -->` | Count of `DONE_*` files in `Done/` modified today (UTC date) |
+| `<!-- AI_EMPLOYEE:INBOX_COUNT -->` | Count of files currently in `Inbox/` |
+| `<!-- AI_EMPLOYEE:ACTIVE_ITEMS -->` | Bullet list of remaining `Needs_Action/` filenames; if empty write `_No pending items._` |
+| `<!-- AI_EMPLOYEE:RECENT_COMPLETIONS -->` | Last 5 `DONE_*` files sorted newest-first, each with filename + one-line summary |
+| `<!-- AI_EMPLOYEE:PENDING_APPROVALS -->` | Count of plan files in `Plans/` containing `- [ ] APPROVE:` lines |
+
+---
+
+## Step 6 — Log the Session
+
+Append one NDJSON line per processed task to
+`AI_Employee_Vault/Logs/YYYY-MM-DD.json` (use today's UTC date for the
+filename). Use this exact schema:
 
 ```json
 {
-  "timestamp": "ISO-8601Z",
+  "timestamp": "<ISO-8601Z>",
   "action_type": "process_needs_action",
   "actor": "claude_code",
-  "target": "<filename>",
-  "parameters": { "type": "<item_type>", "priority": "<priority>" },
-  "approval_status": "auto | pending_approval",
-  "approved_by": "system | pending_human",
-  "result": "success | deferred"
+  "target": "<source task filename>",
+  "parameters": {
+    "type": "<item type>",
+    "priority": "<priority>",
+    "plan_file": "<PLAN_*.md filename>"
+  },
+  "approval_status": "auto",
+  "approved_by": "system",
+  "result": "success | deferred | failure"
 }
 ```
 
+Use `"result": "deferred"` when a plan was created but contains `APPROVE`
+lines awaiting human sign-off. Use `"result": "failure"` when the error path
+was taken.
+
+---
+
 ## Completion Signal
 
-When all items are processed and Dashboard.md is updated, output:
+When Dashboard.md and all log entries are written, output exactly:
 
 ```
 <promise>TASK_COMPLETE</promise>
 ```
-
-## Error Handling
-
-If any step fails for a specific file:
-1. Do NOT stop processing other files.
-2. Create `AI_Employee_Vault/Needs_Action/ERROR_<timestamp>_<original>.md`
-   describing what failed.
-3. Log the failure with `"result": "failure"` in the daily log.
-4. Continue to the next file.
