@@ -32,14 +32,23 @@ Inbox (file drop) ──► Filesystem Watcher ──► Needs_Action/
 
 ---
 
-## Current Tier: Bronze
+## Current Tier: Silver
 
 | Requirement | Status |
 |-------------|--------|
 | `AI_Employee_Vault/` with Dashboard + Handbook | Done |
 | `/Inbox`, `/Needs_Action`, `/Done` folders | Done |
+| `Pending_Approval/`, `Approved/`, `Rejected/` folders | Done |
 | Filesystem Watcher script | Done |
-| Agent Skill: `process-needs-action` | Done |
+| Gmail Watcher (IMAP, 5-min poll) | Done |
+| WhatsApp Watcher (Playwright, 60s daemon) | Done |
+| Approval Watcher (5s poll) | Done |
+| Agent Skill: `process-needs-action` (extended for email+whatsapp) | Done |
+| Agent Skill: `execute-plan` (email-mcp + LinkedIn) | Done |
+| Agent Skill: `linkedin-post` (lead-gen content) | Done |
+| MCP Server: `email-mcp` (send/draft/search) | Done |
+| Cron scheduling: `scripts/install-cron.sh` | Done |
+| `Business_Goals.md` with OKRs and LinkedIn topics | Done |
 
 ---
 
@@ -154,6 +163,82 @@ AI_Employee_Vault/
 
 ---
 
+## Silver Tier
+
+### Prerequisites
+
+- Gmail account with IMAP enabled and an App Password (16-char, from Google Account > Security > 2FA > App Passwords)
+- WhatsApp account (Web access via QR code on first run)
+- Playwright Chromium browser: `.venv/bin/playwright install chromium`
+
+### Quickstart (Silver Tier — 6 steps)
+
+**Step 1 — Install dependencies:**
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/playwright install chromium
+```
+
+**Step 2 — Configure `.env`:**
+```bash
+cp .env.example .env
+# Set:
+# VAULT_PATH=/absolute/path/to/AI_Employee_Vault
+# GMAIL_EMAIL=your@gmail.com
+# GMAIL_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+# DRY_RUN=true
+```
+
+**Step 3 — Install cron entries:**
+```bash
+bash scripts/install-cron.sh
+# WSL2: sudo service cron start
+```
+
+**Step 4 — Start the orchestrator (runs filesystem + approval + WhatsApp watchers):**
+```bash
+VAULT_PATH="$PWD/AI_Employee_Vault" .venv/bin/python orchestrator.py
+```
+
+**Step 5 — Invoke skills in Claude:**
+```bash
+# Process incoming emails and WhatsApp messages:
+claude --print "Run the process-needs-action skill"
+
+# Generate a LinkedIn post:
+claude --print "Run the linkedin-post skill"
+
+# Execute approved actions:
+claude --print "Run the execute-plan skill"
+```
+
+**Step 6 — Approve actions in Obsidian:**
+- Open `AI_Employee_Vault/Pending_Approval/` in Obsidian
+- Review the approval file content
+- Drag/move it to `Approved/` to trigger execution, or `Rejected/` to discard
+
+See `specs/002-silver-ai-employee/quickstart.md` for detailed walkthrough.
+
+### Silver Tier Vault Structure
+
+```
+AI_Employee_Vault/
+├── Dashboard.md          ← Real-time status (updated by Claude after each run)
+├── Company_Handbook.md   ← Rules of engagement
+├── Business_Goals.md     ← OKRs, services, LinkedIn post topics
+├── Inbox/                ← File drop zone
+├── Needs_Action/         ← All task files (EMAIL_, WA_, FILE_, ACTION_, ERROR_)
+├── Plans/                ← Claude-generated PLAN_*.md files
+├── Pending_Approval/     ← APPROVAL_*.md awaiting human decision
+├── Approved/             ← Human-approved → triggers execution
+├── Rejected/             ← Declined actions (archived)
+├── Done/                 ← Completed items (never deleted)
+└── Logs/                 ← Audit trail (YYYY-MM-DD.json, 90-day retention)
+```
+
+---
+
 ## Submission
 
-- Tier: **Bronze**
+- Tier: **Silver**

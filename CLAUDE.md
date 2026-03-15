@@ -239,7 +239,7 @@ AI_Employee_Vault/
 ├── Inbox/                    # Drop zone for files; watcher picks them up
 ├── Needs_Action/             # Watcher-created .md task files awaiting Claude
 ├── In_Progress/<agent>/      # Claimed tasks (claim-by-move, prevents double-work)
-├── Plans/                    # Claude-generated Plan.md with [ ] APPROVE checkboxes
+├── Plans/                    # Claude-generated Plan.md with [ ] task checkboxes
 ├── Pending_Approval/         # Sensitive actions waiting for human sign-off
 ├── Approved/                 # Human-approved → triggers MCP execution
 ├── Rejected/                 # Declined actions (never deleted)
@@ -275,7 +275,7 @@ Completion strategies:
 Invocation: `/ralph-loop "<prompt>" --completion-promise "TASK_COMPLETE" --max-iterations 10`
 
 #### Human-in-the-Loop (HITL)
-For sensitive actions, Claude writes to `Plans/` (not `Pending_Approval/` directly) with `[ ] APPROVE` checkboxes. Only after a human checks the box does the orchestrator move it to `Approved/` and trigger the MCP action.
+For sensitive actions, Claude writes a `Plans/PLAN_*.md` draft and an `APPROVAL_*.md` file to `Pending_Approval/`. Execution is blocked until a human moves the `APPROVAL_*.md` to `Approved/`, which triggers the ApprovalWatcher and the `execute-plan` skill. Files moved to `Rejected/` are archived and never executed.
 
 **Banking:** never auto-retry. Always require fresh approval.
 
@@ -380,6 +380,11 @@ Commit messages must reference tier: `feat(bronze): …`, `feat(silver): …`
 All AI functionality lives in `.claude/skills/<skill-name>/SKILL.md`. Watchers are perception-only — no logic. Current skills:
 - `process-needs-action` — reads `Needs_Action/`, processes by type, updates Dashboard, moves to Done
 
+**RULE: When creating or updating any skill, always invoke the `skill-creator` skill first.**
+Use it by telling Claude: "Use the skill-creator skill to create/update [skill-name]".
+The skill-creator ensures skills follow the correct SKILL.md structure, have proper frontmatter,
+and are immediately usable by Claude Code.
+
 ### Judging Criteria (submission reference)
 
 | Criterion | Weight |
@@ -393,6 +398,8 @@ All AI functionality lives in `.claude/skills/<skill-name>/SKILL.md`. Watchers a
 ## Active Technologies
 - Python 3.12+ (WSL2 Ubuntu) + `watchdog>=4.0.0`, `python-dotenv>=1.0.0` (001-bronze-ai-employee)
 - Markdown files in `AI_Employee_Vault/` (no database) (001-bronze-ai-employee)
+- Python 3.12+ (watchers, email-mcp), Node.js v18+ not required (Playwright MCP already exists) + `imaplib`/`smtplib` (stdlib), `playwright>=1.40.0` (Python), `mcp>=1.0.0` (PyPI), `watchdog>=4.0.0` (existing) (002-silver-ai-employee)
+- Obsidian vault markdown files only — no external databases (002-silver-ai-employee)
 
 ## Recent Changes
 - 001-bronze-ai-employee: Added Python 3.12+ (WSL2 Ubuntu) + `watchdog>=4.0.0`, `python-dotenv>=1.0.0`
