@@ -1,28 +1,37 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change  : N/A (initial creation) → 1.0.0
-Bump rationale  : MINOR — First ratification; all five principles and governance sections are new.
+Version change  : 1.0.0 → 1.1.0
+Bump rationale  : MINOR — Principle III approval gate mechanism updated from
+                  checkbox-based ([ ] APPROVE) to folder-movement pattern
+                  (Pending_Approval/ → Approved/). All other principles unchanged.
 
-Principles added:
-  I.   Skills-First & MCP Architecture (new)
-  II.  Folder-Based State Machine (new)
-  III. Human-in-the-Loop (HITL) Safety (new)
-  IV.  Proactive Business Intelligence (new)
-  V.   Security & Operations (new)
+Principles modified:
+  III. Human-in-the-Loop (HITL) Safety — approval gate mechanism updated
+       Old: skills draft Plans/ with [ ] APPROVE checkboxes; blocked until human checks box
+       New: skills write APPROVAL_*.md to Pending_Approval/; blocked until human moves to Approved/
 
-Principles removed : none
-Sections added     : Hackathon Tier Compliance, Governance
-Sections removed   : none
+Principles unchanged:
+  I.   Skills-First & MCP Architecture
+  II.  Folder-Based State Machine
+  IV.  Proactive Business Intelligence
+  V.   Security & Operations
+
+Sections unchanged : Hackathon Tier Compliance, Governance
 
 Templates reviewed:
-  ✅ .specify/templates/plan-template.md   — Constitution Check section is generic; compatible.
-  ✅ .specify/templates/spec-template.md   — No constitution-specific references; compatible.
-  ✅ .specify/templates/tasks-template.md  — Skill-based task structure aligns with Principle I.
+  ✅ .specify/templates/plan-template.md   — Constitution Check section is generic; no update needed.
+  ✅ .specify/templates/spec-template.md   — No approval gate references; no update needed.
+  ✅ .specify/templates/tasks-template.md  — No approval gate references; no update needed.
   ✅ .specify/templates/phr-template.prompt.md — No changes required.
 
+ADR reference:
+  ADR-0001: history/adr/0001-hitl-approval-mechanism-folder-movement-vs-checkbox.md
+  Documents the rationale and alternatives considered for this change.
+
 Deferred TODOs:
-  - RATIFICATION_DATE is set to today (2026-03-06); update if project has an earlier founding date.
+  - CLAUDE.md HITL section still references checkbox pattern — manual update required.
+  - specs/002-silver-ai-employee/spec.md FR-007 still references [ ] APPROVE: — update via /sp.specify.
 -->
 
 # Digital FTE Constitution: 2026 Hackathon Standards
@@ -62,9 +71,11 @@ The following actions MUST NOT be executed autonomously under any circumstances:
 - Financial transactions or Odoo record modifications (posting invoices, payments)
 - Any action that is irreversible or affects a third party
 
-The mandatory approval gate: skills MUST draft intents in `Plans/` as `.md` files
-containing `[ ] APPROVE` checkboxes. Execution MUST be blocked until a human
-checks the box. No skill MAY poll or auto-approve its own approval request.
+The mandatory approval gate: skills MUST write an `APPROVAL_*.md` file to
+`Pending_Approval/` alongside a `Plans/PLAN_*.md` draft. Execution MUST be blocked
+until a human explicitly moves the `APPROVAL_*.md` file into `Approved/`. No skill
+MAY auto-approve its own approval request. Files moved to `Rejected/` are archived
+and MUST never be re-executed.
 
 ### IV. Proactive Business Intelligence
 
@@ -123,4 +134,4 @@ compliance with the five Core Principles before implementation begins.
 
 Runtime guidance for Claude Code lives in `CLAUDE.md` at the repository root.
 
-**Version**: 1.0.0 | **Ratified**: 2026-03-06 | **Last Amended**: 2026-03-06
+**Version**: 1.1.0 | **Ratified**: 2026-03-06 | **Last Amended**: 2026-03-15
