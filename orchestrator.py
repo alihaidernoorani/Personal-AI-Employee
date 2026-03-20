@@ -80,7 +80,7 @@ def main():
     )
     parser.add_argument(
         "--watcher",
-        choices=["filesystem", "gmail", "whatsapp", "approval", "all"],
+        choices=["filesystem", "gmail", "gmail_api", "whatsapp", "approval", "all"],
         default=None,
         help="Which watcher(s) to start. Default: filesystem + approval + whatsapp.",
     )
@@ -117,6 +117,12 @@ def main():
         GmailWatcher = None
 
     try:
+        from watchers.gmail_api_watcher import GmailApiWatcher
+    except ImportError as e:
+        logger.warning(f"GmailApiWatcher not available: {e}")
+        GmailApiWatcher = None
+
+    try:
         from watchers.whatsapp_watcher import WhatsAppWatcher
     except ImportError as e:
         logger.warning(f"WhatsAppWatcher not available: {e}")
@@ -134,12 +140,21 @@ def main():
     threads = []
 
     if selected == "gmail":
-        # Gmail watcher — typically invoked by cron every 5 minutes
+        # Gmail watcher (IMAP) — typically invoked by cron every 5 minutes
         if GmailWatcher is None:
             logger.error("GmailWatcher unavailable — cannot start")
             sys.exit(1)
         logger.info("Starting GmailWatcher (5-min poll)")
         watcher = GmailWatcher(VAULT_PATH)
+        watcher.run()  # Run in foreground for cron invocations
+
+    elif selected == "gmail_api":
+        # Gmail API watcher — polls Gmail API for UNSEEN IMPORTANT emails
+        if GmailApiWatcher is None:
+            logger.error("GmailApiWatcher unavailable — cannot start")
+            sys.exit(1)
+        logger.info("Starting GmailApiWatcher (2-min poll with OAuth)")
+        watcher = GmailApiWatcher(VAULT_PATH)
         watcher.run()  # Run in foreground for cron invocations
 
     elif selected == "whatsapp":

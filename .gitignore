@@ -1,13 +1,26 @@
 # Environment & secrets
 .env
+.mcp.json
 *.pem
 *.key
 credentials.json
+credentials.json.json
 token.json
+.gmail_token.json
+.gmail_mcp_token.json
+.linkedin_token.json
 
 # WhatsApp session
 whatsapp_session/
 *.session
+
+# Runtime logs and temp files
+*.log
+wa_*.txt
+watcher_*.txt
+
+# Playwright browser profile (stores LinkedIn/site sessions — never commit)
+playwright-profile/
 
 # Python
 __pycache__/
@@ -24,6 +37,19 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Vault runtime folders (private messages, generated plans, logs — never commit)
+AI_Employee_Vault/Done/
+AI_Employee_Vault/Plans/
+AI_Employee_Vault/Pending_Approval/
+AI_Employee_Vault/Approved/
+AI_Employee_Vault/Rejected/
+AI_Employee_Vault/Logs/
+AI_Employee_Vault/Inbox/
+AI_Employee_Vault/In_Progress/
+
+# Local Claude settings
+.claude/settings.local.json
 
 # Obsidian workspace state (optional — remove if you want to sync these)
 AI_Employee_Vault/.obsidian/workspace.json

@@ -1,18 +1,22 @@
-"""SMTP/IMAP helpers for email-mcp server.
+"""Gmail API helpers for email-mcp server.
 
-All external calls are gated behind DRY_RUN env var.
-DRY_RUN=true (default): logs the action, returns dry_run status.
-DRY_RUN=false: makes real SMTP/IMAP calls.
+Uses OAuth 2.0 via credentials.json instead of App Password.
+
+First-time setup (run once):
+  python scripts/setup_gmail_mcp.py
+
+After that, .gmail_mcp_token.json auto-refreshes silently.
+
+DRY_RUN=true (default) — no real emails sent during development.
 """
 
-import imaplib
-import json
+import base64
 import logging
 import os
-import smtplib
 from datetime import datetime, timezone
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -20,9 +24,45 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+BASE_DIR = Path(__file__).parent.parent.parent
+CREDENTIALS_FILE = Path(os.getenv("GMAIL_CREDENTIALS", str(BASE_DIR / "credentials.json")))
+TOKEN_FILE = BASE_DIR / ".gmail_mcp_token.json"
 GMAIL_EMAIL = os.getenv("GMAIL_EMAIL", "")
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() != "false"
+
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/gmail.readonly",
+]
+
+
+def _get_service():
+    """Return an authenticated Gmail API service object.
+
+    Uses .gmail_mcp_token.json if valid; auto-refreshes if expired.
+    Raises RuntimeError if no token exists (run setup_gmail_mcp.py first).
+    """
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    from googleapiclient.discovery import build
+
+    creds = None
+    if TOKEN_FILE.exists():
+        creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            TOKEN_FILE.write_text(creds.to_json())
+            logger.info("Gmail token refreshed.")
+        else:
+            raise RuntimeError(
+                f"No valid Gmail OAuth token found at {TOKEN_FILE}. "
+                "Run: python scripts/setup_gmail_mcp.py"
+            )
+
+    return build("gmail", "v1", credentials=creds)
 
 
 def send_email(
@@ -31,16 +71,10 @@ def send_email(
     body: str,
     reply_to_message_id: str | None = None,
 ) -> dict:
-    """Send an email via Gmail SMTP.
-
-    Args:
-        to: Recipient email address
-        subject: Email subject
-        body: Email body text
-        reply_to_message_id: Optional IMAP UID to reply to
+    """Send an email via Gmail API.
 
     Returns:
-        {"status": "sent"|"dry_run", "message_id": str}
+        {"status": "sent"|"dry_run"|"error", "message_id": str}
     """
     if DRY_RUN:
         logger.info(f"[DRY_RUN] send_email to={to} subject={subject!r}")
@@ -59,11 +93,13 @@ def send_email(
             msg["References"] = reply_to_message_id
         msg.attach(MIMEText(body, "plain"))
 
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(GMAIL_EMAIL, GMAIL_APP_PASSWORD)
-            server.send_message(msg)
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        service = _get_service()
+        sent = service.users().messages().send(
+            userId="me", body={"raw": raw}
+        ).execute()
 
-        message_id = msg.get("Message-ID", "unknown")
+        message_id = sent.get("id", "unknown")
         logger.info(f"Email sent to {to}: {message_id}")
         return {"status": "sent", "message_id": message_id}
 
@@ -73,38 +109,31 @@ def send_email(
 
 
 def draft_reply(message_id: str, draft_body: str) -> dict:
-    """Save a draft reply to Gmail Drafts folder.
-
-    Args:
-        message_id: IMAP UID of the message to reply to
-        draft_body: Draft body text
+    """Save a draft reply via Gmail API Drafts.
 
     Returns:
-        {"status": "drafted"|"dry_run", "draft_id": str}
+        {"status": "drafted"|"dry_run"|"error", "draft_id": str}
     """
     if DRY_RUN:
         logger.info(f"[DRY_RUN] draft_reply message_id={message_id}")
         return {"status": "dry_run", "draft_id": f"dry_run_draft_{message_id}"}
 
     try:
-        imap = imaplib.IMAP4_SSL("imap.gmail.com")
-        imap.login(GMAIL_EMAIL, GMAIL_APP_PASSWORD)
-        imap.select("[Gmail]/Drafts")
-
         msg = MIMEText(draft_body, "plain")
         msg["From"] = GMAIL_EMAIL
         msg["Subject"] = "Re: (draft)"
         msg["In-Reply-To"] = message_id
 
-        imap.append(
-            "[Gmail]/Drafts",
-            "",
-            imaplib.Time2Internaldate(datetime.now().timetuple()),
-            msg.as_bytes(),
-        )
-        imap.logout()
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        service = _get_service()
+        draft = service.users().drafts().create(
+            userId="me",
+            body={"message": {"raw": raw, "threadId": message_id}},
+        ).execute()
 
-        return {"status": "drafted", "draft_id": f"draft_{message_id}"}
+        draft_id = draft.get("id", "unknown")
+        logger.info(f"Draft created: {draft_id}")
+        return {"status": "drafted", "draft_id": draft_id}
 
     except Exception as e:
         logger.error(f"draft_reply failed: {e}")
@@ -112,10 +141,10 @@ def draft_reply(message_id: str, draft_body: str) -> dict:
 
 
 def search_inbox(query: str, max_results: int = 10) -> list:
-    """Search Gmail INBOX using IMAP search.
+    """Search Gmail using the Gmail API.
 
     Args:
-        query: IMAP search string (e.g. "FROM alice@example.com")
+        query: Gmail search query (same syntax as Gmail search box)
         max_results: Maximum number of results to return
 
     Returns:
@@ -127,28 +156,29 @@ def search_inbox(query: str, max_results: int = 10) -> list:
 
     results = []
     try:
-        imap = imaplib.IMAP4_SSL("imap.gmail.com")
-        imap.login(GMAIL_EMAIL, GMAIL_APP_PASSWORD)
-        imap.select("INBOX")
+        service = _get_service()
+        resp = service.users().messages().list(
+            userId="me", q=query, maxResults=max_results
+        ).execute()
 
-        _, uid_data = imap.uid("search", None, query)
-        uids = uid_data[0].split()[-max_results:] if uid_data[0] else []
-
-        for uid_bytes in uids:
+        for m in resp.get("messages", []):
             try:
-                _, msg_data = imap.uid("fetch", uid_bytes, "(RFC822.HEADER)")
-                import email as email_lib
-                msg = email_lib.message_from_bytes(msg_data[0][1])
+                msg = service.users().messages().get(
+                    userId="me",
+                    id=m["id"],
+                    format="metadata",
+                    metadataHeaders=["From", "Subject", "Date"],
+                ).execute()
+                headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
                 results.append({
-                    "uid": uid_bytes.decode(),
-                    "from": msg.get("From", ""),
-                    "subject": msg.get("Subject", ""),
-                    "snippet": f"(header only — from {msg.get('From', '')})",
+                    "uid": msg["id"],
+                    "from": headers.get("From", ""),
+                    "subject": headers.get("Subject", ""),
+                    "snippet": msg.get("snippet", ""),
+                    "date": headers.get("Date", ""),
                 })
             except Exception:
                 continue
-
-        imap.logout()
 
     except Exception as e:
         logger.error(f"search_inbox failed: {e}")
