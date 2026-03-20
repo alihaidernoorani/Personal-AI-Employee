@@ -38,6 +38,19 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# Vault runtime folders (private messages, generated plans, logs — never commit)
+AI_Employee_Vault/Done/
+AI_Employee_Vault/Plans/
+AI_Employee_Vault/Pending_Approval/
+AI_Employee_Vault/Approved/
+AI_Employee_Vault/Rejected/
+AI_Employee_Vault/Logs/
+AI_Employee_Vault/Inbox/
+AI_Employee_Vault/In_Progress/
+
+# Local Claude settings
+.claude/settings.local.json
+
 # Obsidian workspace state (optional — remove if you want to sync these)
 AI_Employee_Vault/.obsidian/workspace.json
 AI_Employee_Vault/.obsidian/workspace-mobile.json
