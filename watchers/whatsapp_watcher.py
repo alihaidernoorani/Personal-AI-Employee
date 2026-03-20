@@ -1,27 +1,21 @@
-"""WhatsApp watcher — polls WhatsApp Web every 60 seconds using Playwright.
+"""
+WhatsApp Watcher — persistent session, unread detection, no duplicates.
 
-Validation steps:
-  1. python -c "from watchers.whatsapp_watcher import WhatsAppWatcher; print('import ok')"
-  2. Run: .venv/bin/playwright install chromium  (one-time setup)
-  3. Run: VAULT_PATH="$PWD/AI_Employee_Vault" python orchestrator.py --watcher whatsapp
-  4. Scan the QR code in the opened browser window (first run only)
-  5. Send a WhatsApp message to the monitored account
-  6. Within 60 seconds, Needs_Action/WA_*.md should appear with valid YAML frontmatter
-
-Persistent long-running daemon. Creates WA_*.md task files in Needs_Action/.
-Tracks processed message hashes in scripts/processed_whatsapp.json.
-
-NOTE: Requires `playwright install chromium` and a QR scan on first run.
-Session is saved in whatsapp_session/ (gitignored) — subsequent runs skip QR.
+Design:
+- ONE browser launch via launch_persistent_context (session saved to whatsapp_session/)
+- QR scan only on first run; subsequent runs auto-authenticate from saved session
+- Polls every 30s using time.sleep (non-blocking for Playwright event loop)
+- Deduplication via SHA-256(sender + text) — timestamps never included in hash
+- Chat grid uses role="grid" + role="row" (NOT role="listitem")
 """
 
 import hashlib
 import json
 import logging
-import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, List
 
 from watchers.base_watcher import BaseWatcher
 
@@ -29,186 +23,226 @@ logger = logging.getLogger(__name__)
 
 SESSION_DIR = Path(__file__).parent.parent / "whatsapp_session"
 
+PRIORITY_KEYWORDS = {
+    "urgent": "urgent",
+    "asap": "high",
+    "invoice": "high",
+    "payment": "high",
+}
 
-def _slugify(text: str, max_len: int = 30) -> str:
-    text = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return text[:max_len] or "unknown"
+
+def detect_priority(text: str) -> str:
+    text_lower = text.lower()
+    for keyword, level in PRIORITY_KEYWORDS.items():
+        if keyword in text_lower:
+            return level
+    return "normal"
 
 
 class WhatsAppWatcher(BaseWatcher):
-    """Polls WhatsApp Web for new messages using Playwright.
-
-    Runs as a persistent daemon (60s internal loop) — NOT a cron job.
-    This is required to satisfy SC-002 (≤60s detection).
-    """
-
-    def __init__(self, vault_path: str):
-        super().__init__(vault_path)
+    def __init__(self, vault_path: str, check_interval: int = 30, headless: bool = False):
+        super().__init__(vault_path, check_interval=check_interval)
         self._registry_path = (
             Path(__file__).parent.parent / "scripts" / "processed_whatsapp.json"
         )
-        self._processed: set = self._load_registry()
+        self._processed = self._load_registry()
+        self._headless = headless
+
+    # ------------------------------------------------------------------ registry
 
     def _load_registry(self) -> set:
         try:
-            data = json.loads(self._registry_path.read_text(encoding="utf-8"))
-            return set(data.get("processed", []))
-        except (FileNotFoundError, json.JSONDecodeError):
+            return set(json.loads(self._registry_path.read_text())["processed"])
+        except Exception:
             return set()
 
-    def _save_registry(self) -> None:
+    def _save_registry(self):
         self._registry_path.parent.mkdir(parents=True, exist_ok=True)
         self._registry_path.write_text(
-            json.dumps({"processed": sorted(self._processed)}, indent=2),
-            encoding="utf-8",
+            json.dumps({"processed": list(self._processed)}, indent=2)
         )
 
-    def check_for_updates(self) -> list:
-        """Poll WhatsApp Web for unread messages. Returns list of new task file paths."""
-        new_tasks = []
-        try:
-            from playwright.sync_api import sync_playwright
+    def _hash_message(self, sender: str, text: str) -> str:
+        """Stable dedup key: sender + message text only. No timestamps."""
+        return hashlib.sha256(f"{sender}:{text}".encode()).hexdigest()[:16]
 
-            with sync_playwright() as p:
-                browser = p.chromium.launch_persistent_context(
-                    str(SESSION_DIR),
-                    headless=False,  # Must be visible for QR code scan on first run
-                    args=["--no-sandbox"],
-                )
-                page = browser.pages[0] if browser.pages else browser.new_page()
+    # ------------------------------------------------------------------ output
 
-                # Navigate to WhatsApp Web if not already there
-                if "web.whatsapp.com" not in page.url:
-                    page.goto("https://web.whatsapp.com", wait_until="domcontentloaded")
-                    # Wait up to 60s for QR scan / login
-                    try:
-                        page.wait_for_selector('[data-icon="chat"]', timeout=60000)
-                    except Exception:
-                        logger.info("WhatsApp Web not ready yet — QR scan may be needed")
-                        browser.close()
-                        return []
+    def check_for_updates(self) -> List[Path]:
+        """Not used — this watcher drives itself via run()."""
+        return []
 
-                # Get accessibility snapshot to find unread chats
-                try:
-                    snapshot = page.accessibility.snapshot()
-                    messages = self._extract_unread_messages(snapshot)
-                except Exception as e:
-                    logger.warning(f"Could not get accessibility snapshot: {e}")
-                    messages = []
+    def create_action_file(self, msg: Dict) -> Path:
+        sender = msg["sender"]
+        text = msg["text"]
+        priority = msg["priority"]
 
-                for msg in messages:
-                    msg_hash = hashlib.sha256(
-                        f"{msg['sender']}{msg['text']}{msg['timestamp']}".encode()
-                    ).hexdigest()[:16]
-
-                    if msg_hash in self._processed:
-                        continue
-
-                    task_path = self.create_action_file({**msg, "hash": msg_hash})
-                    if task_path:
-                        self._processed.add(msg_hash)
-                        self._save_registry()
-                        new_tasks.append(task_path)
-                        logger.info(f"Created WhatsApp task: {task_path.name}")
-
-                browser.close()
-
-        except Exception as e:
-            logger.error(f"WhatsAppWatcher non-fatal error: {e}")
-            self._write_error_file("whatsapp_watcher", str(e))
-
-        return new_tasks
-
-    def _extract_unread_messages(self, snapshot: dict) -> list:
-        """Extract unread chat messages from accessibility snapshot."""
-        messages = []
-        if not snapshot:
-            return messages
-
-        def traverse(node):
-            if not node:
-                return
-            # Look for unread badge indicators
-            name = node.get("name", "") or ""
-            role = node.get("role", "") or ""
-            if role == "listitem" and "unread" in name.lower():
-                # Attempt to extract sender + preview text
-                children = node.get("children", [])
-                sender = ""
-                text = ""
-                for child in children:
-                    child_name = child.get("name", "") or ""
-                    child_role = child.get("role", "") or ""
-                    if child_role in ("heading", "text") and not sender:
-                        sender = child_name
-                    elif child_role == "text" and sender:
-                        text = child_name
-                if sender:
-                    messages.append({
-                        "sender": sender,
-                        "text": text or "(no preview)",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    })
-            for child in node.get("children", []) or []:
-                traverse(child)
-
-        traverse(snapshot)
-        return messages
-
-    def create_action_file(self, item: dict) -> Path:
-        """Write WA_*.md task file to Needs_Action/."""
-        sender = item.get("sender", "unknown")
-        text = item.get("text", "")
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        slug = _slugify(sender)
-        filename = f"WA_{ts}_{slug}.md"
-        task_path = Path(self.vault_path) / "Needs_Action" / filename
+        filename = f"WA_{ts}_{sender[:20].replace(' ', '_')}.md"
+        path = self.needs_action / filename
 
-        received = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        content = (
+            f"---\n"
+            f"type: whatsapp\n"
+            f'sender: "{sender}"\n'
+            f"priority: {priority}\n"
+            f'received: "{datetime.now(timezone.utc).isoformat()}"\n'
+            f"status: pending\n"
+            f"---\n\n"
+            f"## Message from {sender}\n\n"
+            f"{text}\n"
+        )
+        path.write_text(content, encoding="utf-8")
+        logger.info(f"Created action file: {path.name}")
+        return path
 
-        content = f"""---
-type: whatsapp
-source: whatsapp
-sender: "{sender}"
-message_text: "{text.replace('"', "'")}"
-message_hash: "{item.get('hash', '')}"
-received: "{received}"
-priority: normal
-status: pending
----
+    # ------------------------------------------------------------------ browser
 
-## Message
+    def run(self):
+        from playwright.sync_api import sync_playwright
 
-{text}
-
-## Suggested Actions
-
-- [ ] Review message
-- [ ] Draft reply (requires approval)
-"""
-        task_path.write_text(content, encoding="utf-8")
-        return task_path
-
-    def _write_error_file(self, watcher_name: str, error_msg: str) -> None:
-        """Write ERROR_*.md to Needs_Action/ on non-fatal errors (FR-005)."""
-        try:
-            ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            error_path = (
-                Path(self.vault_path)
-                / "Needs_Action"
-                / f"ERROR_{ts}_{watcher_name}.md"
-            )
-            error_path.write_text(
-                f"---\ntype: error\nsource: {watcher_name}\nreceived: \"{datetime.now(timezone.utc).isoformat()}Z\"\npriority: urgent\nstatus: pending\n---\n\n## Error\n\n{error_msg}\n",
-                encoding="utf-8",
-            )
-        except Exception as write_err:
-            logger.error(f"Failed to write error file: {write_err}")
-
-    def run(self) -> None:
-        """Run WhatsApp watcher as persistent daemon with 60s poll interval."""
         SESSION_DIR.mkdir(parents=True, exist_ok=True)
-        logger.info("WhatsAppWatcher started (60s persistent daemon)")
-        while True:
-            self.check_for_updates()
-            time.sleep(60)
+
+        with sync_playwright() as p:
+            logger.info("Launching browser (persistent session, single launch)...")
+
+            # --enable-unsafe-swiftshader + --no-sandbox together cause exit-code-21
+            # on Windows when launched from certain parent environments (WSL, CI).
+            # Ignoring both flags fixes the crash; Windows Chrome doesn't need them.
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=str(SESSION_DIR),
+                headless=self._headless,
+                ignore_default_args=[
+                    "--enable-unsafe-swiftshader",
+                    "--no-sandbox",
+                ],
+                args=[
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-blink-features=AutomationControlled",
+                ],
+            )
+
+            # ONE page for the entire session — never create a second one
+            page = context.new_page()
+            page.goto("https://web.whatsapp.com", wait_until="domcontentloaded")
+
+            logger.info("Waiting for WhatsApp login (scan QR code if prompted)...")
+            try:
+                # [data-testid="search"] only appears when authenticated
+                # Allow 5 minutes for QR scan
+                page.wait_for_selector('[data-testid="search"]', timeout=300000)
+                logger.info("WhatsApp authenticated. Watcher starting...")
+            except Exception:
+                logger.warning("Login wait timed out — continuing anyway.")
+
+            # Continuous poll loop — browser is NEVER relaunched inside here
+            while True:
+                try:
+                    self._poll(page)
+                except KeyboardInterrupt:
+                    logger.info("Stopped by user.")
+                    break
+                except Exception as e:
+                    logger.error(f"Poll error: {e}")
+
+                # time.sleep instead of page.wait_for_timeout to avoid
+                # blocking Playwright's internal event loop
+                time.sleep(self.check_interval)
+
+    # ------------------------------------------------------------------ polling
+
+    def _poll(self, page):
+        """Single poll cycle: find unread chats, extract last message, write task file."""
+
+        # WhatsApp Web sidebar: role="grid" (the list) + role="row" (each chat)
+        # Confirmed via DOM inspection — role="listitem" does NOT exist here
+        unread = page.evaluate("""
+            () => {
+                const grid = document.querySelector('[aria-label="Chat list"][role="grid"]');
+                if (!grid) return [];
+
+                const results = [];
+                grid.querySelectorAll('[role="row"]').forEach(row => {
+                    // Only process rows that have the unread count badge
+                    if (!row.querySelector('[data-testid="icon-unread-count"]')) return;
+
+                    // Use span[title] for the contact name — most reliable in WhatsApp Web
+                    // Fallback: filter out "X unread message(s)" lines from innerText
+                    let sender = '';
+                    const titleEl = row.querySelector('span[title]');
+                    if (titleEl && titleEl.title.trim()) {
+                        sender = titleEl.title.trim();
+                    } else {
+                        const lines = (row.innerText || '').trim().split('\\n').filter(Boolean);
+                        // Skip lines that look like unread count notifications
+                        const nonBadge = lines.filter(l => !/^\\d+ unread/i.test(l));
+                        sender = nonBadge[0] || lines[0] || '';
+                    }
+
+                    if (sender.length > 1) {
+                        // Get message preview: last text line that isn't timestamp or badge
+                        const lines = (row.innerText || '').trim().split('\\n').filter(Boolean);
+                        const preview = lines.filter(l =>
+                            !/^\\d+ unread/i.test(l) && !/^\\d{1,2}:\\d{2}/.test(l) && l !== sender
+                        ).join(' ');
+
+                        results.push({ sender, preview });
+                    }
+                });
+                return results;
+            }
+        """)
+
+        if not unread:
+            logger.info("[POLL] No unread chats.")
+            return
+
+        logger.info(f"[POLL] {len(unread)} unread chat(s) found.")
+
+        for chat in unread:
+            sender = chat.get("sender", "").strip()
+            preview = chat.get("preview", "")
+            if not sender:
+                continue
+
+            # Skip if preview already processed (fast path before clicking)
+            preview_hash = self._hash_message(sender, preview)
+            if preview_hash in self._processed:
+                continue
+
+            try:
+                # Open the chat to read the full last message
+                page.locator(
+                    f'[aria-label="Chat list"] [role="row"]:has-text("{sender}")'
+                ).first.click(timeout=5000)
+                page.wait_for_timeout(1200)
+
+                # Extract last message from the conversation panel
+                last_msg = page.evaluate("""
+                    () => {
+                        const msgs = document.querySelectorAll('[data-testid="msg-container"]');
+                        if (!msgs.length) return '';
+                        return (msgs[msgs.length - 1].innerText || '').trim();
+                    }
+                """) or preview
+
+                msg_hash = self._hash_message(sender, last_msg)
+                if msg_hash in self._processed:
+                    continue
+
+                priority = detect_priority(last_msg)
+                self.create_action_file({"sender": sender, "text": last_msg, "priority": priority})
+                self._processed.add(msg_hash)
+                self._save_registry()
+                logger.info(f"[NEW] {sender} | priority={priority}")
+
+            except Exception as e:
+                logger.warning(f"Could not open chat '{sender}': {e}")
+                # Fallback: save with preview text rather than silently dropping
+                if preview and preview_hash not in self._processed:
+                    priority = detect_priority(preview)
+                    self.create_action_file({"sender": sender, "text": preview, "priority": priority})
+                    self._processed.add(preview_hash)
+                    self._save_registry()
+                    logger.info(f"[NEW/preview] {sender} | priority={priority}")

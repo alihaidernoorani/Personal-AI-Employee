@@ -131,7 +131,53 @@ ensures the content is accurate, on-brand, and appropriately timed.
 
 ---
 
-## Step 6 — Update Dashboard.md
+## Step 6 — Execute (after approval)
+
+When `APPROVAL_<timestamp>_linkedin.md` is moved to `AI_Employee_Vault/Approved/`,
+run the post via the API script:
+
+```python
+# Read post_content from the approval file parameters.post_content field
+import subprocess, sys
+result = subprocess.run(
+    [sys.executable, "scripts/linkedin_post.py", "--post", post_content],
+    capture_output=True, text=True, cwd="<project_root>"
+)
+```
+
+Or directly from the command line (PowerShell):
+
+```powershell
+python scripts/linkedin_post.py --post "Your post text here"
+```
+
+**First-time setup** — obtain OAuth token before posting:
+
+```powershell
+python scripts/linkedin_post.py --auth
+```
+
+This opens a browser, you authorise the app, and the token is saved to
+`.linkedin_token.json` (gitignored). Subsequent posts reuse the token
+automatically until it expires (~60 days).
+
+**Check token status:**
+
+```powershell
+python scripts/linkedin_post.py --token-info
+```
+
+**Required `.env` keys:**
+
+| Key | Description |
+|-----|-------------|
+| `LINKEDIN_CLIENT_ID` | OAuth app client ID from LinkedIn Developer Portal |
+| `LINKEDIN_CLIENT_SECRET` | OAuth app client secret |
+| `COMPANY_URN` | `urn:li:organization:<id>` — post as company page. Leave blank to post as personal profile. |
+
+---
+
+## Step 7 — Update Dashboard.md
 
 Update `AI_Employee_Vault/Dashboard.md` pending approvals section:
 
@@ -141,7 +187,7 @@ Update `AI_Employee_Vault/Dashboard.md` pending approvals section:
 
 ---
 
-## Step 7 — Log the Action
+## Step 8 — Log the Action
 
 Append one NDJSON line to `AI_Employee_Vault/Logs/YYYY-MM-DD.json`:
 

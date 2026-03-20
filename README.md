@@ -190,16 +190,29 @@ cp .env.example .env
 # DRY_RUN=true
 ```
 
-**Step 3 — Install cron entries:**
+**Step 3 — Install scheduling:**
+
+*Windows (PowerShell — recommended):*
+```powershell
+# Run as Administrator
+powershell -ExecutionPolicy Bypass -File scripts\install-task-scheduler.ps1
+```
+
+*WSL2/Linux (alternative):*
 ```bash
 bash scripts/install-cron.sh
-# WSL2: sudo service cron start
+sudo service cron start   # required every WSL2 session
 ```
 
 **Step 4 — Start the orchestrator (runs filesystem + approval + WhatsApp watchers):**
 ```bash
 VAULT_PATH="$PWD/AI_Employee_Vault" .venv/bin/python orchestrator.py
 ```
+
+> **Recommended for production:** Use `watchdog.py` instead to auto-restart on crash:
+> ```bash
+> VAULT_PATH="$PWD/AI_Employee_Vault" .venv/bin/python watchdog.py
+> ```
 
 **Step 5 — Invoke skills in Claude:**
 ```bash
@@ -236,6 +249,65 @@ AI_Employee_Vault/
 ├── Done/                 ← Completed items (never deleted)
 └── Logs/                 ← Audit trail (YYYY-MM-DD.json, 90-day retention)
 ```
+
+---
+
+## Security Disclosure
+
+### Credential Storage
+
+| Secret | Where stored | Git-tracked? |
+|--------|-------------|--------------|
+| `GMAIL_APP_PASSWORD` | `.env` (project root) | **No** — `.env` is in `.gitignore` |
+| MCP env vars (Gmail, vault path) | `.mcp.json` (project root) | **No** — `.mcp.json` is in `.gitignore` |
+| WhatsApp session cookies | `whatsapp_session/` | **No** — in `.gitignore` |
+| LinkedIn browser session | `playwright-profile/` | **No** — in `.gitignore` |
+
+**Never** commit `.env` or `.mcp.json`. Both are listed in `.gitignore`.
+
+### DRY_RUN Safety Default
+
+All action scripts check `DRY_RUN` (default: `true`) before executing any
+external action (email send, LinkedIn post). Set `DRY_RUN=false` in `.env`
+only when you are ready for live execution.
+
+### Human-in-the-Loop (HITL) Safeguards
+
+Sensitive actions (email sends, LinkedIn posts) are **never executed automatically**.
+The workflow requires explicit human approval:
+
+1. Claude writes `Pending_Approval/APPROVAL_*.md` — no action taken yet
+2. Human reviews the file in Obsidian
+3. Human moves it to `Approved/` (or `Rejected/` to discard)
+4. Only after file is in `Approved/` does `execute-plan` call any MCP tool
+
+Rejected files are archived in `Rejected/` and never re-executed.
+
+### Audit Logging
+
+Every action (send, draft, approval, rejection, watcher start, error) is appended
+to `AI_Employee_Vault/Logs/YYYY-MM-DD.json` in NDJSON format with:
+- ISO-8601 timestamp
+- actor (`claude_code`, `email-mcp`, `watchdog`, `scheduler`)
+- `approval_status` (`auto`, `approved`, `dry_run`, `rejected`)
+- `result` (`success`, `failure`, `dry_run`, `deferred`)
+
+Logs are retained for 90 days. No action is silently discarded.
+
+### Permission Boundaries
+
+| Action | Auto-approved | Always requires human approval |
+|--------|--------------|-------------------------------|
+| Email replies | Never (always approval) | All email sends |
+| LinkedIn posts | Never | All posts |
+| File create/read/move in vault | Yes | Delete or move outside vault |
+| Payments | N/A (Silver tier) | All (Gold tier) |
+
+### Credential Rotation
+
+Rotate the Gmail App Password monthly or after any suspected breach.
+Generate a new App Password at **myaccount.google.com → Security → App passwords**,
+update `.env` and `.mcp.json`, and restart the orchestrator.
 
 ---
 

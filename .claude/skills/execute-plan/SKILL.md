@@ -73,9 +73,65 @@ If `DRY_RUN=true`:
 - Do NOT call any external tool
 
 If `DRY_RUN=false`:
-- Use `browsing-with-playwright` MCP to navigate to LinkedIn and post the content
-- `post_content` is available in `action_params.post_content`
-- Log the result to `Logs/YYYY-MM-DD.json`
+
+Use the `playwright` MCP tools directly (they are available as `browser_navigate`,
+`browser_snapshot`, `browser_click`, `browser_type`, `browser_wait_for`, etc.).
+
+Execute the following steps **in order**. If any step fails, treat it as a
+retryable error and follow the retry logic in Step 2c.
+
+**LinkedIn Posting Workflow:**
+
+1. **Navigate to LinkedIn feed**
+   Call `browser_navigate` with `url: "https://www.linkedin.com/feed/"`.
+
+2. **Wait for page load**
+   Call `browser_wait_for` with `time: 3000` (3 seconds).
+
+3. **Verify login state**
+   Call `browser_snapshot`. Inspect the result:
+   - If you see a "Sign in" or "Join now" button → LinkedIn session has expired.
+     Write `ERROR_<ts>_linkedin-session-expired.md` to `Needs_Action/` with
+     instructions to re-open the browser and log in manually.
+     Move the approval file back to `Pending_Approval/`. Stop this action.
+   - If you see a feed or profile nav → proceed.
+
+4. **Open the post composer**
+   Call `browser_click` targeting the "Start a post" button.
+   Use `element: "Start a post"` — Playwright will match by accessible name.
+   If not found via click, call `browser_snapshot` to get the current `ref`,
+   then retry with the `ref` from the snapshot.
+
+5. **Wait for composer to open**
+   Call `browser_wait_for` with `time: 2000`.
+
+6. **Type the post content**
+   Call `browser_type` with:
+   - `element: "text editor"` (LinkedIn's composer uses a contenteditable div)
+   - `text: <post_content from action_params.post_content>`
+   - Do NOT set `submit: true`
+
+7. **Verify content was entered**
+   Call `browser_snapshot`. Confirm the text appears in the composer.
+
+8. **Click Post**
+   Call `browser_click` with `element: "Post"`.
+   If multiple "Post" elements exist, use the primary/submit button
+   (typically has `ref` visible in the snapshot near the composer modal).
+
+9. **Wait for confirmation**
+   Call `browser_wait_for` with `time: 3000`.
+   Then call `browser_snapshot` and confirm the feed is visible
+   (modal closed = post submitted successfully).
+
+10. **Take a screenshot for the audit trail**
+    Call `browser_take_screenshot` with `type: "png"`.
+    Save the screenshot description/result in the log entry parameters.
+
+**Session setup (one-time, manual):**
+The `playwright` MCP uses a persistent browser profile at `playwright-profile/`.
+On first use, open any browser page via the MCP, navigate to `https://www.linkedin.com`,
+and log in manually. The session cookie is saved and reused on subsequent runs.
 
 #### Action: unknown
 

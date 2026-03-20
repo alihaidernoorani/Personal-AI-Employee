@@ -1,13 +1,26 @@
 # Environment & secrets
 .env
+.mcp.json
 *.pem
 *.key
 credentials.json
+credentials.json.json
 token.json
+.gmail_token.json
+.gmail_mcp_token.json
+.linkedin_token.json
 
 # WhatsApp session
 whatsapp_session/
 *.session
+
+# Runtime logs and temp files
+*.log
+wa_*.txt
+watcher_*.txt
+
+# Playwright browser profile (stores LinkedIn/site sessions — never commit)
+playwright-profile/
 
 # Python
 __pycache__/
