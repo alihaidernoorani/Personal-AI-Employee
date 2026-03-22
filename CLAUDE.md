@@ -400,6 +400,8 @@ and are immediately usable by Claude Code.
 - Markdown files in `AI_Employee_Vault/` (no database) (001-bronze-ai-employee)
 - Python 3.12+ (watchers, email-mcp), Node.js v18+ not required (Playwright MCP already exists) + `imaplib`/`smtplib` (stdlib), `playwright>=1.40.0` (Python), `mcp>=1.0.0` (PyPI), `watchdog>=4.0.0` (existing) (002-silver-ai-employee)
 - Obsidian vault markdown files only — no external databases (002-silver-ai-employee)
+- Python 3.13+ (watchers, orchestrator, Odoo MCP); Node.js v24+ LTS (Email MCP, browser-mcp) + `watchdog>=4.0.0`, `playwright>=1.40.0`, `python-dotenv>=1.0.0`, `mcp>=1.0.0`, `requests>=2.31.0` (Odoo JSON-RPC), `schedule>=1.2.0` (cron fallback) (003-gold-ai-employee)
+- Obsidian vault (markdown files); `scripts/processed_*.json` (watcher idempotency state); local JSON queue files for email/event buffering during MCP outages (003-gold-ai-employee)
 
 ## Recent Changes
 - 001-bronze-ai-employee: Added Python 3.12+ (WSL2 Ubuntu) + `watchdog>=4.0.0`, `python-dotenv>=1.0.0`
