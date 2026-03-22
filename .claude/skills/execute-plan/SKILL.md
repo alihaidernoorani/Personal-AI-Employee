@@ -7,7 +7,8 @@ description: |
   MCP tool. On success, moves files to Done/ and logs the result.
   On failure (3 retries, 5s backoff), creates ERROR_*.md and restores
   the approval file to Pending_Approval/.
-  Supported actions: send_email (via email-mcp), linkedin_post (via browsing-with-playwright).
+  Supported actions: send_email (via email-mcp), linkedin_post (via browsing-with-playwright),
+  social_post (via social-mcp for all platforms).
   Use this skill after ApprovalWatcher creates ACTION_*.md trigger files.
 ---
 
@@ -132,6 +133,36 @@ retryable error and follow the retry logic in Step 2c.
 The `playwright` MCP uses a persistent browser profile at `playwright-profile/`.
 On first use, open any browser page via the MCP, navigate to `https://www.linkedin.com`,
 and log in manually. The session cookie is saved and reused on subsequent runs.
+
+#### Action: social_post
+
+Post to social media via the `social-mcp` MCP server and retrieve post summary.
+
+Extract from `action_params`:
+- `platform` — one of: `linkedin`, `facebook`, `instagram`, `twitter`
+- `content` or `caption` — the post text
+- `approval_id` — required; pass through to the social-mcp tool
+
+**Step 1: Post to platform**
+
+Call the appropriate `social-mcp` tool based on `platform`:
+- `linkedin` → call `post_linkedin` with `{content, visibility: "PUBLIC", approval_id}`
+- `facebook` → call `post_facebook` with `{content, page_id: FACEBOOK_PAGE_ID, approval_id}`
+- `instagram` → call `post_instagram` with `{caption, image_url?, approval_id}`
+- `twitter` → call `post_twitter` with `{content, approval_id}`
+
+If `DRY_RUN=true`: the social-mcp tool will return `{dry_run: true, would_have: "..."}` without posting. Log as `approval_status: dry_run`.
+
+**Step 2: Retrieve post summary**
+
+After a successful post (or dry-run response with a mock post_id), call `get_post_summary` with:
+- `{platform, post_id}` — use the `post_id` from Step 1 response, or `"DRY_RUN_MOCK"` for dry runs.
+
+**Step 3: Log both actions**
+
+Write two NDJSON audit entries:
+1. `action_type: social_post` with post result
+2. `action_type: social_summary` with engagement data
 
 #### Action: unknown
 
