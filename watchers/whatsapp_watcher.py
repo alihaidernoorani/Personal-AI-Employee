@@ -78,7 +78,8 @@ class WhatsAppWatcher(BaseWatcher):
         priority = msg["priority"]
 
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        filename = f"WA_{ts}_{sender[:20].replace(' ', '_')}.md"
+        safe_sender = sender[:20].replace(' ', '_').replace('/', '_').replace('\\', '_')
+        filename = f"WA_{ts}_{safe_sender}.md"
         path = self.needs_action / filename
 
         content = (
@@ -129,9 +130,13 @@ class WhatsAppWatcher(BaseWatcher):
 
             logger.info("Waiting for WhatsApp login (scan QR code if prompted)...")
             try:
-                # [data-testid="search"] only appears when authenticated
-                # Allow 5 minutes for QR scan
-                page.wait_for_selector('[data-testid="search"]', timeout=300000)
+                # Try multiple selectors — WhatsApp Web changes data-testid frequently.
+                # [aria-label="Chat list"] is the same selector used in _poll() so it's reliable.
+                # Allow 5 minutes for QR scan on first run; subsequent runs hit it instantly.
+                page.wait_for_selector(
+                    '[aria-label="Chat list"], [data-testid="search"], [data-testid="chat-list"]',
+                    timeout=300000,
+                )
                 logger.info("WhatsApp authenticated. Watcher starting...")
             except Exception:
                 logger.warning("Login wait timed out — continuing anyway.")
@@ -155,52 +160,64 @@ class WhatsAppWatcher(BaseWatcher):
     def _poll(self, page):
         """Single poll cycle: find unread chats, extract last message, write task file."""
 
-        # WhatsApp Web sidebar: role="grid" (the list) + role="row" (each chat)
-        # Confirmed via DOM inspection — role="listitem" does NOT exist here
+        # WhatsApp Web changes its DOM periodically. Try multiple known selector patterns.
         unread = page.evaluate("""
             () => {
-                const grid = document.querySelector('[aria-label="Chat list"][role="grid"]');
-                if (!grid) return [];
+                // Find the chat list container — try role="grid", role="list", or aria-label alone
+                const grid =
+                    document.querySelector('[aria-label="Chat list"][role="grid"]') ||
+                    document.querySelector('[aria-label="Chat list"][role="list"]') ||
+                    document.querySelector('[aria-label="Chat list"]');
+                if (!grid) return { error: 'no_grid', results: [] };
+
+                // Find chat rows — role="row", role="listitem", or direct children
+                const rows = grid.querySelectorAll('[role="row"], [role="listitem"]');
 
                 const results = [];
-                grid.querySelectorAll('[role="row"]').forEach(row => {
-                    // Only process rows that have the unread count badge
-                    if (!row.querySelector('[data-testid="icon-unread-count"]')) return;
+                rows.forEach(row => {
+                    // Unread badge: try multiple data-testid values WhatsApp has used
+                    const hasBadge =
+                        row.querySelector('[data-testid="icon-unread-count"]') ||
+                        row.querySelector('[data-testid="unread-count"]') ||
+                        row.querySelector('[aria-label*="unread"]') ||
+                        row.querySelector('span[data-testid*="unread"]');
+                    if (!hasBadge) return;
 
-                    // Use span[title] for the contact name — most reliable in WhatsApp Web
-                    // Fallback: filter out "X unread message(s)" lines from innerText
+                    // Sender name: span[title] is most stable
                     let sender = '';
                     const titleEl = row.querySelector('span[title]');
                     if (titleEl && titleEl.title.trim()) {
                         sender = titleEl.title.trim();
                     } else {
                         const lines = (row.innerText || '').trim().split('\\n').filter(Boolean);
-                        // Skip lines that look like unread count notifications
                         const nonBadge = lines.filter(l => !/^\\d+ unread/i.test(l));
                         sender = nonBadge[0] || lines[0] || '';
                     }
 
                     if (sender.length > 1) {
-                        // Get message preview: last text line that isn't timestamp or badge
                         const lines = (row.innerText || '').trim().split('\\n').filter(Boolean);
                         const preview = lines.filter(l =>
                             !/^\\d+ unread/i.test(l) && !/^\\d{1,2}:\\d{2}/.test(l) && l !== sender
                         ).join(' ');
-
                         results.push({ sender, preview });
                     }
                 });
-                return results;
+                return { error: null, results };
             }
         """)
 
-        if not unread:
+        if unread.get("error"):
+            logger.warning(f"[POLL] Chat list not found ({unread['error']}) — page may still be loading.")
+            return
+
+        chats = unread.get("results", [])
+        if not chats:
             logger.info("[POLL] No unread chats.")
             return
 
-        logger.info(f"[POLL] {len(unread)} unread chat(s) found.")
+        logger.info(f"[POLL] {len(chats)} unread chat(s) found.")
 
-        for chat in unread:
+        for chat in chats:
             sender = chat.get("sender", "").strip()
             preview = chat.get("preview", "")
             if not sender:
