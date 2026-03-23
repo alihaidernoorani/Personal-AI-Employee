@@ -47,6 +47,12 @@ AI_Employee_Vault/Rejected/
 AI_Employee_Vault/Logs/
 AI_Employee_Vault/Inbox/
 AI_Employee_Vault/In_Progress/
+AI_Employee_Vault/Needs_Action/
+AI_Employee_Vault/Briefings/
+AI_Employee_Vault/Accounting/
+
+# Packaged skill files
+*.skill
 
 # Local Claude settings
 .claude/settings.local.json

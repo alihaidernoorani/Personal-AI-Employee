@@ -297,6 +297,101 @@ def _tool_sync_transaction(bank_transaction_id: str, odoo_transaction_id: str) -
     return {"synced": True}
 
 
+def _tool_update_expense(
+    name: str,
+    total_amount: float,
+    expense_id: int | None = None,
+    date: str | None = None,
+    category: str | None = None,
+    employee: str | None = None,
+    reference: str | None = None,
+) -> dict:
+    action = "updated" if expense_id else "created"
+    if DRY_RUN:
+        return {
+            "dry_run": True,
+            "action": action,
+            "expense_id": expense_id or "MOCK_EXP_001",
+            "name": name,
+            "total_amount": total_amount,
+        }
+    if not _ensure_auth():
+        return {"error": "AUTH_FAILED", "retryable": False}
+
+    # Resolve employee_id
+    employee_id = None
+    if employee:
+        result = _rpc_call("hr.employee", "search_read",
+            [[["name", "ilike", employee]]],
+            {"fields": ["id", "name"], "limit": 1},
+        )
+        rows = result.get("result") or []
+        if rows:
+            employee_id = rows[0]["id"]
+    if not employee_id:
+        result = _rpc_call("hr.employee", "search_read",
+            [[]], {"fields": ["id", "name"], "limit": 1})
+        rows = result.get("result") or []
+        if rows:
+            employee_id = rows[0]["id"]
+    if not employee_id:
+        return {"error": "No employee found in Odoo — create an employee record first.", "retryable": False}
+
+    # Resolve product_id from category name
+    product_id = None
+    if category:
+        result = _rpc_call("product.product", "search_read",
+            [[["name", "ilike", category], ["can_be_expensed", "=", True]]],
+            {"fields": ["id", "name"], "limit": 1},
+        )
+        rows = result.get("result") or []
+        if rows:
+            product_id = rows[0]["id"]
+
+    expense_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    vals: dict = {
+        "name": name,
+        "total_amount": total_amount,
+        "date": expense_date,
+        "employee_id": employee_id,
+    }
+    if product_id:
+        vals["product_id"] = product_id
+    if reference:
+        vals["reference"] = reference
+
+    if expense_id:
+        result = _rpc_call("hr.expense", "write", [[expense_id], vals])
+        if "error" in result:
+            return result
+        result_id = expense_id
+    else:
+        result = _rpc_call("hr.expense", "create", [vals])
+        if "error" in result:
+            return result
+        result_id = result.get("result")
+
+    # Read back confirmation
+    read_result = _rpc_call("hr.expense", "read",
+        [[result_id]],
+        {"fields": ["name", "total_amount", "state", "date", "employee_id"]},
+    )
+    record = (read_result.get("result") or [{}])[0]
+
+    employee_name = record["employee_id"][1] if isinstance(record.get("employee_id"), list) else ""
+    _log_action("update_expense", str(result_id), vals, "auto", {"status": "ok"})
+    return {
+        "status": "ok",
+        "action": action,
+        "expense_id": result_id,
+        "name": record.get("name", name),
+        "total_amount": record.get("total_amount", total_amount),
+        "state": record.get("state", "draft"),
+        "date": record.get("date", expense_date),
+        "employee": employee_name,
+    }
+
+
 def _tool_list_invoices(date_from: str | None, date_to: str | None, state: str | None) -> list | dict:
     if DRY_RUN:
         return {"dry_run": True, "invoices": [
@@ -423,6 +518,25 @@ async def list_tools() -> list[types.Tool]:
                 },
             },
         ),
+        types.Tool(
+            name="update_expense",
+            description="Create or update an employee expense (hr.expense) in Odoo. "
+                        "If expense_id is provided, updates that record; otherwise creates a new one. "
+                        "Resolves employee and expense-category product by name automatically.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Expense description, e.g. 'Team lunch'"},
+                    "total_amount": {"type": "number", "description": "Total expense amount including tax"},
+                    "expense_id": {"type": "integer", "description": "Existing expense ID to update (omit to create)"},
+                    "date": {"type": "string", "description": "Expense date YYYY-MM-DD (default: today)"},
+                    "category": {"type": "string", "description": "Expense category/product name, e.g. 'Meals', 'Travel'"},
+                    "employee": {"type": "string", "description": "Employee name (default: first employee in system)"},
+                    "reference": {"type": "string", "description": "External reference or receipt number"},
+                },
+                "required": ["name", "total_amount"],
+            },
+        ),
     ]
 
 
@@ -476,6 +590,18 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             state=arguments.get("state"),
         )
         _log_action("odoo_list_invoices", "", arguments, "auto", {"status": "ok"})
+        return [types.TextContent(type="text", text=json.dumps(result))]
+
+    elif name == "update_expense":
+        result = _tool_update_expense(
+            name=arguments["name"],
+            total_amount=arguments["total_amount"],
+            expense_id=arguments.get("expense_id"),
+            date=arguments.get("date"),
+            category=arguments.get("category"),
+            employee=arguments.get("employee"),
+            reference=arguments.get("reference"),
+        )
         return [types.TextContent(type="text", text=json.dumps(result))]
 
     else:
