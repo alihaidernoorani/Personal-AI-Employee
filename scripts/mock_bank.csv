@@ -1,0 +1,6 @@
+id,date,payee,amount,reference,category
+TXN001,2026-06-27,Acme Corp Ltd,+4500.00,INV-2026-010,client_payment
+TXN002,2026-06-27,Adobe Creative Cloud,-59.99,SUB-ADOBE-JUN,subscription
+TXN003,2026-06-27,TechStart Solutions,+2800.00,INV-2026-011,client_payment
+TXN004,2026-06-27,AWS,-89.50,AWS-JUN-2026,subscription
+TXN005,2026-06-27,New Lead Ltd,+1200.00,INV-2026-012,client_payment

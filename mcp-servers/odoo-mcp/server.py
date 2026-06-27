@@ -91,11 +91,14 @@ def _log_action(action_type: str, target: str, parameters: dict, approval_status
 # ---------------------------------------------------------------------------
 
 def _validate_odoo_url() -> bool:
-    """Ensure ODOO_URL uses HTTPS."""
+    """Ensure ODOO_URL is set. Allow http for localhost; require https for remote."""
     if not ODOO_URL:
         return False
-    if not ODOO_URL.startswith("https://"):
-        logger.error(f"ODOO_URL must begin with https:// — got: {ODOO_URL}")
+    is_local = any(ODOO_URL.startswith(p) for p in (
+        "https://", "http://localhost", "http://127.0.0.1"
+    ))
+    if not is_local:
+        logger.error(f"ODOO_URL must use https:// for non-localhost hosts — got: {ODOO_URL}")
         return False
     return True
 
@@ -163,6 +166,8 @@ def _rpc_call(model: str, method: str, args: list, kwargs: dict | None = None) -
         if error:
             msg = str(error)
             if "session" in msg.lower() or "Odoo Session Expired" in msg:
+                global _session_uid
+                _session_uid = None  # force clean re-auth; prevents infinite stale-session loop
                 logger.warning("Odoo session expired — re-authenticating")
                 if _authenticate():
                     return _rpc_call(model, method, args, kwargs)
@@ -270,17 +275,22 @@ def _tool_create_transaction(amount: float, date: str, payee: str, reference: st
         return {"dry_run": True, "transaction_id": f"MOCK_TXN_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"}
     if not _ensure_auth():
         return {"error": "AUTH_FAILED", "retryable": False}
-    # Odoo account.bank.statement.line for transaction recording
-    result = _rpc_call("account.bank.statement.line", "create", [{
-        "date": date,
-        "payment_ref": reference,
-        "partner_name": payee,
-        "amount": amount,
-        "narration": category,
+    # Use account.move (journal entry) — accessible without Accounting/Basic group
+    move_type = "in_invoice" if amount < 0 else "out_invoice"
+    result = _rpc_call("account.move", "create", [{
+        "move_type": move_type,
+        "invoice_date": date,
+        "ref": reference,
+        "narration": f"{payee} | {category}",
+        "invoice_line_ids": [[0, 0, {
+            "name": f"{payee} — {category}",
+            "quantity": 1,
+            "price_unit": abs(amount),
+        }]],
     }])
     if "error" in result:
         return result
-    return {"transaction_id": str(result.get("result", "unknown"))}
+    return {"transaction_id": str(result.get("result", "unknown")), "model": "account.move"}
 
 
 def _tool_sync_transaction(bank_transaction_id: str, odoo_transaction_id: str) -> dict:

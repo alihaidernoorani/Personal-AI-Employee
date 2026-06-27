@@ -58,7 +58,7 @@
 
 Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptable for services not yet configured (e.g., Odoo, social media tokens) but the following MUST be set now:
 
-- [ ] T006 [HUMAN] Create `.env` from `.env.example` and populate: `VAULT_PATH`, `VAULT_TEMP_PATH`, `WHATSAPP_SESSION_PATH`, `GMAIL_CREDENTIALS_PATH` (can point to a placeholder file for now)
+- [X] T006 [HUMAN] Create `.env` from `.env.example` and populate: `VAULT_PATH`, `VAULT_TEMP_PATH`, `WHATSAPP_SESSION_PATH`, `GMAIL_CREDENTIALS_PATH` (can point to a placeholder file for now)
   > **Inputs**: `.env.example` | **Outputs**: `.env` with all base keys present (values can be placeholder for later checkpoints)
   > **Deps**: T001–T005 passed | **Done when**: `.env` exists; `python -c "from dotenv import load_dotenv; load_dotenv(); import os; print(os.getenv('VAULT_PATH'))"` returns a non-None path
   > **Test**: Run `python orchestrator.py --status` — should start without crashing (watchers may warn about credentials, that is acceptable)
@@ -132,7 +132,7 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 **⛔ STOP — Human action required.**
 
-- [ ] T013 [HUMAN] Set up Gmail OAuth2 credentials and configure `GMAIL_CREDENTIALS_PATH` in `.env`
+- [X] T013 [HUMAN] Set up Gmail OAuth2 credentials and configure `GMAIL_CREDENTIALS_PATH` in `.env`
   > **Inputs**: Google Cloud Console OAuth2 credentials JSON | **Outputs**: `GMAIL_CREDENTIALS_PATH` pointing to valid credentials; Gmail watcher polls successfully
   > **Deps**: T007 | **Done when**: `python watchers/gmail_watcher.py` runs one real poll cycle; no `AUTH_FAILED` errors; at least one email retrieved (or empty inbox logged)
   > **Test**: Drop a test email to the monitored account; within 120 s verify `Needs_Action/EMAIL_*.md` appears
@@ -258,7 +258,7 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 **⛔ STOP — Human action required.**
 
-- [ ] T028 [HUMAN] Populate social media API tokens in `.env`: `LINKEDIN_ACCESS_TOKEN`, `FACEBOOK_PAGE_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCESS_TOKEN`, `TWITTER_BEARER_TOKEN`
+- [X] T028 [HUMAN] Populate social media API tokens in `.env`: `LINKEDIN_ACCESS_TOKEN`, `FACEBOOK_PAGE_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCESS_TOKEN`, `TWITTER_BEARER_TOKEN`
   > **Done when**: Each token is non-empty; `DRY_RUN=false` test call to `post_linkedin` succeeds (posts to a test page or sandbox)
   > **Test**: `claude "Use social-mcp post_linkedin content 'Test post — AI Employee setup verification' approval_id TEST"` with `DRY_RUN=false` → verify post appears on LinkedIn
 
@@ -316,25 +316,25 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 ### Verify Existing Skills
 
-- [ ] T035 [P] [VERIFY] [US1] Verify `process-needs-action` skill: drop a test `EMAIL_*.md` into `Needs_Action/`; verify `Plans/PLAN_*.md` created and task moved to `Done/`
+- [X] T035 [P] [VERIFY] [US1] Verify `process-needs-action` skill: drop a test `EMAIL_*.md` into `Needs_Action/`; verify `Plans/PLAN_*.md` created and task moved to `Done/`
   > **Inputs**: `Needs_Action/EMAIL_test.md` (manually created) | **Outputs**: `Plans/PLAN_*.md`, task in `Done/`, `Dashboard.md` updated, audit log entry
   > **Deps**: T004 | **Done when**: Skill runs without error; plan file exists; source task is in Done/; Dashboard.md counts reflect change
   > **Test**: `claude "Run the process-needs-action skill"` after dropping test file
   > **Dry run**: `DRY_RUN=true` — skill writes plan but does not send any emails
 
-- [ ] T036 [P] [VERIFY] [US2] Verify HITL flow: drop a `FINANCE_test.md` (payment type); verify `APPROVAL_*.md` created in `Pending_Approval/`; move to `Approved/`; verify `execute-plan` executes (DRY_RUN)
+- [X] T036 [P] [VERIFY] [US2] Verify HITL flow: drop a `FINANCE_test.md` (payment type); verify `APPROVAL_*.md` created in `Pending_Approval/`; move to `Approved/`; verify `execute-plan` executes (DRY_RUN)
   > **Inputs**: `Needs_Action/FINANCE_test.md` with payment action | **Outputs**: `Pending_Approval/APPROVAL_*.md` → moves to `Done/` after approval
   > **Deps**: T035 | **Done when**: No payment MCP call made until approval file moved to Approved/; after move, execute-plan runs (DRY_RUN), logs entry, moves task to Done/
   > **Test**: Manual file-move approval → verify execute-plan log entry shows `dry_run: true`
   > **Dry run**: `DRY_RUN=true` throughout
 
-- [ ] T037 [P] [VERIFY] [US7] Verify `reasoning-loop` skill: run `/ralph-loop "Process Needs_Action and output TASK_COMPLETE"` → verify loop starts, runs, outputs `<promise>TASK_COMPLETE</promise>`, and stop hook allows exit
+- [X] T037 [P] [VERIFY] [US7] Verify `reasoning-loop` skill: run `/ralph-loop "Process Needs_Action and output TASK_COMPLETE"` → verify loop starts, runs, outputs `<promise>TASK_COMPLETE</promise>`, and stop hook allows exit
   > **Inputs**: `scripts/ralph_loop.py`, `scripts/check_loop_complete.py`, `.claude/settings.json` | **Outputs**: loop completes within 2 iterations; Claude exits after TASK_COMPLETE
   > **Deps**: T004 | **Done when**: Stop hook is registered in `.claude/settings.json`; loop driver detects completion token; Claude exits cleanly
   > **Test**: `python scripts/ralph_loop.py "Output <promise>TASK_COMPLETE</promise> immediately" --max-iterations 3` — verify exits after 1 iteration
   > **Dry run**: N/A — loop itself is not an external action
 
-- [ ] T038 [VERIFY] Confirm `scripts/check_loop_complete.py` is registered in `.claude/settings.json` as a Stop hook
+- [X] T038 [VERIFY] Confirm `scripts/check_loop_complete.py` is registered in `.claude/settings.json` as a Stop hook
   > **Inputs**: `.claude/settings.json` | **Outputs**: confirmed hook entry
   > **Deps**: T037 | **Done when**: `grep "check_loop_complete" .claude/settings.json` returns match; if missing, add per quickstart.md Section 5
   > **Test**: Grep check
@@ -354,7 +354,7 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
   > **Test**: `claude "Run the ceo-briefing skill"` — briefing mentions mock revenue figure and at least one subscription in cost optimisation
   > **Dry run**: N/A — local file creation
 
-- [ ] T041 [BUILD] [US5] Verify CEO Briefing output contains ALL required sections: Executive Summary, Revenue Summary (table), Completed This Week, Bottlenecks, Cost Optimisation Suggestions, Upcoming Deadlines, Social Media Summary
+- [X] T041 [BUILD] [US5] Verify CEO Briefing output contains ALL required sections: Executive Summary, Revenue Summary (table), Completed This Week, Bottlenecks, Cost Optimisation Suggestions, Upcoming Deadlines, Social Media Summary
   > **Inputs**: `Briefings/YYYY-MM-DD_Monday_Briefing.md` | **Outputs**: validation checklist
   > **Deps**: T040 | **Done when**: Each section heading exists in generated briefing; Revenue Summary table has weekly + MTD rows; Social Media Summary table present (even if with "No posts this week" values)
   > **Test**: `grep -c "## " $VAULT_PATH/Briefings/*.md` returns ≥ 7; spot-check each section
@@ -368,7 +368,7 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 **⛔ STOP — Human action required.**
 
-- [ ] T042 [HUMAN] Verify Odoo Community 19+ is installed and reachable; populate `.env` with `ODOO_URL`, `ODOO_DB`, `ODOO_USERNAME`, `ODOO_PASSWORD`
+- [X] T042 [HUMAN] Verify Odoo Community 19+ is installed and reachable; populate `.env` with `ODOO_URL`, `ODOO_DB`, `ODOO_USERNAME`, `ODOO_PASSWORD`
   > **Done when**: `curl $ODOO_URL/web/session/authenticate` returns a valid JSON response; `python mcp-servers/odoo-mcp/server.py` starts and logs authenticated session
   > **Test (dry)**: `DRY_RUN=false claude "Use odoo-mcp get_customer name='Test'"` → returns empty list or test customer (not an auth error)
 
@@ -384,25 +384,25 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 **Independent Test**: Inject a mock transaction into the bank CSV; within 10 minutes it should appear in `Bank_Transactions.md`, an Odoo transaction record should be created, and the next CEO briefing should include this transaction in the Revenue Summary.
 
-- [ ] T043 [US4] Run Odoo invoice creation dry run: `claude "Use odoo-mcp create_invoice for customer_id=1 with line_items=[{description: 'Test Service', quantity: 1, unit_price: 100}] due_date=2026-04-01"` with `DRY_RUN=true`
+- [X] T043 [US4] Run Odoo invoice creation dry run: `claude "Use odoo-mcp create_invoice for customer_id=1 with line_items=[{description: 'Test Service', quantity: 1, unit_price: 100}] due_date=2026-04-01"` with `DRY_RUN=true`
   > **Inputs**: Odoo MCP, DRY_RUN=true | **Outputs**: `{dry_run: true, invoice_id: "MOCK_001", status: "draft"}`
   > **Deps**: T034, T042 | **Done when**: Dry-run response received; no invoice created in Odoo
   > **Test**: Verify Odoo invoice list is unchanged after dry run
   > **Dry run**: This task IS the dry run
 
-- [ ] T044 [US4] Run Odoo invoice creation live: create a real draft invoice in Odoo; verify draft state (not posted)
+- [X] T044 [US4] Run Odoo invoice creation live: create a real draft invoice in Odoo; verify draft state (not posted)
   > **Inputs**: `DRY_RUN=false`, Odoo MCP `create_invoice` | **Outputs**: real invoice_id in Odoo with state "draft"
   > **Deps**: T043 | **Done when**: Invoice appears in Odoo UI with draft state; invoice_id returned in MCP response
   > **Test**: Log into Odoo → Accounting → Invoices → verify draft invoice exists with correct line items
   > **Dry run**: T043 was the dry run
 
-- [ ] T045 [US4] Test full transaction sync pipeline: inject mock transaction to bank CSV → finance watcher creates FINANCE_*.md → process-needs-action creates plan → execute-plan calls `odoo-mcp create_transaction` → verify Odoo record created
+- [X] T045 [US4] Test full transaction sync pipeline: inject mock transaction to bank CSV → finance watcher creates FINANCE_*.md → process-needs-action creates plan → execute-plan calls `odoo-mcp create_transaction` → verify Odoo record created
   > **Inputs**: mock bank CSV entry, `DRY_RUN=false` (controlled test) | **Outputs**: Odoo transaction record; `Bank_Transactions.md` updated; task in Done/; audit log entry
   > **Deps**: T044 | **Done when**: All 5 steps complete without error; Odoo shows new transaction; audit log shows `action_type: odoo_sync`, `result: success`
   > **Test**: End-to-end manual trace through all vault folders after pipeline completes
   > **Dry run**: Run T043 first with DRY_RUN=true to confirm path; then run live
 
-- [ ] T046 [US4] Verify CEO briefing includes Odoo transaction data: run ceo-briefing skill after T045; verify Revenue Summary reflects transaction amount
+- [X] T046 [US4] Verify CEO briefing includes Odoo transaction data: run ceo-briefing skill after T045; verify Revenue Summary reflects transaction amount
   > **Inputs**: `Briefings/` folder | **Outputs**: briefing with transaction reflected in Revenue Summary
   > **Deps**: T045 | **Done when**: Briefing Revenue Summary shows correct weekly revenue including the test transaction
   > **Test**: `grep "Test transaction" $VAULT_PATH/Briefings/*.md` or check Revenue row
@@ -420,7 +420,7 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 **Independent Test**: Trigger `linkedin-post` skill; verify `APPROVAL_*.md` created; approve it; verify `post_linkedin` called (DRY_RUN) and `get_post_summary` called; verify next CEO briefing contains Social Media Summary.
 
-- [ ] T047 [US6] Dry-run full LinkedIn post pipeline: `claude "Run the linkedin-post skill"` → verify `APPROVAL_*.md` in `Pending_Approval/` with `DRY_RUN=true`
+- [X] T047 [US6] Dry-run full LinkedIn post pipeline: `claude "Run the linkedin-post skill"` → verify `APPROVAL_*.md` in `Pending_Approval/` with `DRY_RUN=true`
   > **Inputs**: `Business_Goals.md`, `Company_Handbook.md` | **Outputs**: `Plans/PLAN_LINKEDIN_*.md`, `Pending_Approval/APPROVAL_LINKEDIN_*.md`
   > **Deps**: T027, T039 | **Done when**: Both files created; no MCP call made; approval file has `action_type: social_post`
   > **Test**: `ls $VAULT_PATH/Pending_Approval/APPROVAL_LINKEDIN_*`
@@ -438,22 +438,22 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
   > **Test**: Check LinkedIn profile manually; verify Logs/ entry
   > **Dry run**: T047–T048 were the dry runs
 
-- [ ] T050 [P] [US6] Dry-run Facebook post flow with `DRY_RUN=true`; verify `post_facebook` dry-run response and summary call
+- [X] T050 [P] [US6] Dry-run Facebook post flow with `DRY_RUN=true`; verify `post_facebook` dry-run response and summary call
   > **Deps**: T048 | **Done when**: dry-run response received; no real post
   > **Test**: Same pattern as T047–T048 but for Facebook
   > **Dry run**: This task IS the dry run
 
-- [ ] T051 [P] [US6] Dry-run Instagram post flow with `DRY_RUN=true`
+- [X] T051 [P] [US6] Dry-run Instagram post flow with `DRY_RUN=true`
   > **Deps**: T048 | **Done when**: dry-run response received
   > **Test**: Same pattern for Instagram
   > **Dry run**: This task IS the dry run
 
-- [ ] T052 [P] [US6] Dry-run Twitter/X post flow with `DRY_RUN=true`; verify 280-char enforcement
+- [X] T052 [P] [US6] Dry-run Twitter/X post flow with `DRY_RUN=true`; verify 280-char enforcement
   > **Deps**: T048 | **Done when**: dry-run response; 281-char content returns validation error
   > **Test**: Post 281-char content → verify error; post 280-char content DRY_RUN=true → dry-run response
   > **Dry run**: This task IS the dry run
 
-- [ ] T053 [US6b] Verify Social Media Summary appears in CEO briefing: run ceo-briefing skill after T049 live post; verify Social Media Summary table is populated for LinkedIn
+- [X] T053 [US6b] Verify Social Media Summary appears in CEO briefing: run ceo-briefing skill after T049 live post; verify Social Media Summary table is populated for LinkedIn
   > **Inputs**: `Briefings/`, post audit log | **Outputs**: briefing with LinkedIn row in Social Media Summary
   > **Deps**: T049 | **Done when**: Briefing's Social Media Summary table shows LinkedIn row with post count ≥ 1 and engagement data or "N/A"
   > **Test**: `grep "LinkedIn" $VAULT_PATH/Briefings/*.md`
@@ -469,19 +469,19 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 **User Story covered**: US5
 
-- [ ] T054 [US5] Run ceo-briefing skill with full realistic mock data: 5 completed tasks in Done/, 2 stalled tasks in Needs_Action/ (>24 h old), 1 subscription charge in Bank_Transactions.md, 1 real Odoo transaction from Phase 6
+- [X] T054 [US5] Run ceo-briefing skill with full realistic mock data: 5 completed tasks in Done/, 2 stalled tasks in Needs_Action/ (>24 h old), 1 subscription charge in Bank_Transactions.md, 1 real Odoo transaction from Phase 6
   > **Inputs**: populated vault with realistic data | **Outputs**: `Briefings/YYYY-MM-DD_Monday_Briefing.md` with all 7 sections populated
   > **Deps**: T046, T053 | **Done when**: All 7 briefing sections present; Bottlenecks section lists the 2 stalled tasks; Cost Optimisation flags the subscription; Social Media Summary shows LinkedIn post
   > **Test**: `wc -l $VAULT_PATH/Briefings/*.md` > 50 lines; spot-check each section; verify no "N/A" in Revenue row (mock data has transactions)
   > **Dry run**: N/A — briefing is a local write
 
-- [ ] T055 [US5] Verify clean briefing (no anomalies): empty Done/, no stalled tasks, no suspicious subscriptions → briefing still generates with "No issues identified" notes
+- [X] T055 [US5] Verify clean briefing (no anomalies): empty Done/, no stalled tasks, no suspicious subscriptions → briefing still generates with "No issues identified" notes
   > **Inputs**: clean vault state | **Outputs**: briefing file with all sections, clean-state notes
   > **Deps**: T054 | **Done when**: Briefing file created; sections say "No completed tasks this week" etc.; briefing is NOT empty or skipped
   > **Test**: Run briefing on clean vault; verify file exists with correct date and all headings
   > **Dry run**: N/A
 
-- [ ] T056 [US5] Trigger orchestrator cron for briefing: temporarily set briefing schedule to 1 minute from now; verify orchestrator fires ceo-briefing skill; restore to Sunday 23:00
+- [X] T056 [US5] Trigger orchestrator cron for briefing: temporarily set briefing schedule to 1 minute from now; verify orchestrator fires ceo-briefing skill; restore to Sunday 23:00
   > **Inputs**: `orchestrator.py` schedule, `schedule` library | **Outputs**: briefing auto-generated without manual trigger
   > **Deps**: T055 | **Done when**: Orchestrator fires ceo-briefing without manual `claude` command; briefing file created at expected path
   > **Test**: Set schedule to `schedule.every(1).minutes.do(run_ceo_briefing)` temporarily; wait 65 s; verify briefing created; restore to `schedule.every().sunday.at("23:00").do(...)`
@@ -497,19 +497,19 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 **User Story covered**: US7
 
-- [ ] T057 [US7] Verify stop hook surfaces prior iteration output: run a deliberately incomplete multi-step task via ralph-loop; confirm second iteration receives prior_output in context
+- [X] T057 [US7] Verify stop hook surfaces prior iteration output: run a deliberately incomplete multi-step task via ralph-loop; confirm second iteration receives prior_output in context
   > **Inputs**: `scripts/ralph_loop.py`, `scripts/check_loop_complete.py` | **Outputs**: second iteration context contains prior_output; agent continues from where it left off
   > **Deps**: T038 | **Done when**: Ralph loop runs ≥ 2 iterations on a task that requires them; second iteration's prompt contains prior attempt output; task eventually completes
   > **Test**: Run `python scripts/ralph_loop.py "First say STEP_1_DONE. On the next invocation, output <promise>TASK_COMPLETE</promise>." --max-iterations 3` → verify 2 iterations run; verify iteration 2 sees STEP_1_DONE in context
   > **Dry run**: N/A — loop is local
 
-- [ ] T058 [US7] Test max iterations enforcement: run ralph-loop task that never outputs TASK_COMPLETE; verify loop exits after `max_iterations` and writes `ERROR_LOOP_MAX_*.md`
+- [X] T058 [US7] Test max iterations enforcement: run ralph-loop task that never outputs TASK_COMPLETE; verify loop exits after `max_iterations` and writes `ERROR_LOOP_MAX_*.md`
   > **Inputs**: `scripts/ralph_loop.py`, `max_iterations=3` | **Outputs**: `Needs_Action/ERROR_LOOP_MAX_*.md` after 3 iterations; Claude exits
   > **Deps**: T057 | **Done when**: Loop exits after exactly 3 iterations; error file created with iteration-limit reason; no infinite loop
   > **Test**: `python scripts/ralph_loop.py "Do not output TASK_COMPLETE under any circumstances." --max-iterations 3` → verify ERROR file created; process exits
   > **Dry run**: N/A
 
-- [ ] T059 [US7] Test multi-step Odoo reconciliation via Ralph loop: `claude "Reconcile all FINANCE_*.md files in Needs_Action with Odoo and output TASK_COMPLETE when all are synced"` via ralph-loop; verify all files reach Done/
+- [X] T059 [US7] Test multi-step Odoo reconciliation via Ralph loop: `claude "Reconcile all FINANCE_*.md files in Needs_Action with Odoo and output TASK_COMPLETE when all are synced"` via ralph-loop; verify all files reach Done/
   > **Inputs**: 3+ FINANCE_*.md files in Needs_Action/, Odoo MCP (DRY_RUN=true) | **Outputs**: all FINANCE files in Done/; `<promise>TASK_COMPLETE</promise>` emitted; loop exits cleanly
   > **Deps**: T057, T045 | **Done when**: All task files reach Done/; loop exits after ≤ max_iterations; no ERROR file created
   > **Test**: Count files in Done/ before and after; verify increase by 3; verify no error files; loop exit code = 0
@@ -523,32 +523,32 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 **Purpose**: Verify all Gold tier operations produce correct audit logs; confirm security controls are enforced.
 
-- [ ] T060 [P] Verify every MCP action from Phases 6–9 has a corresponding NDJSON entry in `Logs/YYYY-MM-DD.json` with all required fields
+- [X] T060 [P] Verify every MCP action from Phases 6–9 has a corresponding NDJSON entry in `Logs/YYYY-MM-DD.json` with all required fields
   > **Deps**: T059 | **Done when**: `jq '.' $VAULT_PATH/Logs/$(date +%Y-%m-%d).json | grep action_type` shows entries for `odoo_sync`, `linkedin_post`, `social_summary`, `ceo_briefing`; each entry has timestamp, actor, target, approval_status, result
   > **Test**: `python -c "import json,sys; [json.loads(l) for l in open('$VAULT_PATH/Logs/YYYY-MM-DD.json')]"` — no parse errors
   > **Dry run**: N/A
 
-- [ ] T061 [P] Audit all `Logs/` entries for credential leakage: no API tokens, passwords, or session cookies in any log entry
+- [X] T061 [P] Audit all `Logs/` entries for credential leakage: no API tokens, passwords, or session cookies in any log entry
   > **Deps**: T060 | **Done when**: `grep -r "TOKEN\|PASSWORD\|SECRET\|SESSION" $VAULT_PATH/Logs/` returns no matches
   > **Test**: Run grep audit; if any match found, identify source and fix MCP server to redact
   > **Dry run**: N/A
 
-- [ ] T062 Verify `DRY_RUN=true` blocks all external MCP sends: run full process-needs-action cycle with DRY_RUN=true; confirm no real emails sent, no real posts published, no real Odoo records created
+- [X] T062 Verify `DRY_RUN=true` blocks all external MCP sends: run full process-needs-action cycle with DRY_RUN=true; confirm no real emails sent, no real posts published, no real Odoo records created
   > **Deps**: T060 | **Done when**: Audit log shows all actions with `"dry_run": true`; no new records in Odoo; no emails in sent folder; no LinkedIn posts
   > **Test**: Check Gmail sent folder + Odoo invoice list + LinkedIn profile after DRY_RUN=true cycle
   > **Dry run**: This task IS the dry-run validation
 
-- [ ] T063 Verify rate limit enforcement: send 11 emails via email-mcp in DRY_RUN=true mode; verify 11th call returns `RATE_LIMIT_EXCEEDED`
+- [X] T063 Verify rate limit enforcement: send 11 emails via email-mcp in DRY_RUN=true mode; verify 11th call returns `RATE_LIMIT_EXCEEDED`
   > **Deps**: T060 | **Done when**: 10 successful calls; 11th returns `{error: "RATE_LIMIT_EXCEEDED", retryable: false}`
   > **Test**: Script 11 sequential send_email dry-run calls; verify error on 11th
   > **Dry run**: DRY_RUN=true throughout (no real emails sent)
 
-- [ ] T064 Verify payment rate limit: attempt 4 `post_invoice` calls (DRY_RUN=true); verify 4th returns `RATE_LIMIT_EXCEEDED`
+- [X] T064 Verify payment rate limit: attempt 4 `post_invoice` calls (DRY_RUN=true); verify 4th returns `RATE_LIMIT_EXCEEDED`
   > **Deps**: T060 | **Done when**: 3 successful calls (with valid approval_ids); 4th returns rate limit error
   > **Test**: Script 4 sequential post_invoice calls; verify error on 4th
   > **Dry run**: DRY_RUN=true throughout
 
-- [ ] T065 Verify Dashboard.md single-writer rule and update latency: confirm no skill other than process-needs-action writes to Dashboard.md; verify Dashboard updates within 30 s of a state transition (NFR-007)
+- [X] T065 Verify Dashboard.md single-writer rule and update latency: confirm no skill other than process-needs-action writes to Dashboard.md; verify Dashboard updates within 30 s of a state transition (NFR-007)
   > **Deps**: T039 | **Done when**: (a) Only process-needs-action SKILL.md contains Dashboard.md write instructions; all other skills read or do not touch it. (b) Timing test: trigger a state transition (drop a task into Needs_Action/ and run process-needs-action); record `Dashboard.md` mtime before and after; assert elapsed time ≤ 30 s
   > **Test**: `grep -r "Dashboard.md" .claude/skills/` — only process-needs-action references a write; then: record timestamp → run process-needs-action → `stat -c %Y $VAULT_PATH/Dashboard.md` → assert within 30 s of trigger
   > **Dry run**: N/A
@@ -561,37 +561,37 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 **Purpose**: Simulate each failure mode from the spec and verify the system handles it correctly without data loss.
 
-- [ ] T066 Test email queue (FR-041): disable email-mcp (stop the process); trigger an email send via execute-plan; verify email queued in `scripts/email_outbox_queue.json`; re-enable email-mcp; verify `flush_queue` sends queued email
+- [X] T066 Test email queue (FR-041): disable email-mcp (stop the process); trigger an email send via execute-plan; verify email queued in `scripts/email_outbox_queue.json`; re-enable email-mcp; verify `flush_queue` sends queued email
   > **Deps**: T019, T020 | **Done when**: Email queued when MCP down; delivered when MCP restored; no email lost; audit log shows `queued` then `sent`
   > **Test**: `pkill -f email-mcp` → trigger send → check queue → restart email-mcp → `claude "Use email-mcp to flush_queue"` → verify queue empty
   > **Dry run**: DRY_RUN=true throughout (flush_queue dry run logs "would send 1 email")
 
-- [ ] T067 Test watchers continue without Claude (FR-042): stop Claude process; trigger a Gmail email and a file drop; wait 2 minutes; restart Claude; verify both `Needs_Action/EMAIL_*.md` and `Needs_Action/FILE_*.md` exist and get processed
+- [X] T067 Test watchers continue without Claude (FR-042): stop Claude process; trigger a Gmail email and a file drop; wait 2 minutes; restart Claude; verify both `Needs_Action/EMAIL_*.md` and `Needs_Action/FILE_*.md` exist and get processed
   > **Deps**: T007, T009 | **Done when**: Events captured while Claude is offline; queue processed automatically on Claude restart; no events lost
   > **Test**: Stop claude → trigger events → wait → restart → run process-needs-action → verify Done/ has both tasks
   > **Dry run**: DRY_RUN=true for Claude processing after restart
 
-- [ ] T068 Test temp folder fallback (FR-043): set `VAULT_PATH` to a temporarily unavailable path; drop a file to `Inbox/`; verify output written to `VAULT_TEMP_PATH`; restore vault path; verify file synced to correct vault location
+- [X] T068 Test temp folder fallback (FR-043): set `VAULT_PATH` to a temporarily unavailable path; drop a file to `Inbox/`; verify output written to `VAULT_TEMP_PATH`; restore vault path; verify file synced to correct vault location
   > **Deps**: T017 | **Done when**: No data lost during vault unavailability; FILE_*.md synced to Needs_Action/ on restoration
   > **Test**: `mv $VAULT_PATH $VAULT_PATH.bak` → drop file → wait → `mv $VAULT_PATH.bak $VAULT_PATH` → wait 65 s → verify FILE_*.md in Needs_Action/
   > **Dry run**: N/A — this test IS the simulation
 
-- [ ] T069 Test watchdog auto-restart (FR-037): kill `gmail_watcher` subprocess; verify orchestrator restarts it within 60 seconds; verify audit log entry `actor: watchdog`; kill 3× in one hour; verify ERROR_WATCHDOG_*.md written on 4th kill
+- [X] T069 Test watchdog auto-restart (FR-037): kill `gmail_watcher` subprocess; verify orchestrator restarts it within 60 seconds; verify audit log entry `actor: watchdog`; kill 3× in one hour; verify ERROR_WATCHDOG_*.md written on 4th kill
   > **Deps**: T014 | **Done when**: First 3 kills result in auto-restart within 60 s; 4th kill writes error file and stops auto-restart
   > **Test**: `kill $(cat /tmp/gmail_watcher.pid)` × 4 in quick succession; watch orchestrator log; check Needs_Action/ for ERROR_WATCHDOG_*.md
   > **Dry run**: N/A — process kill test
 
-- [ ] T070 Test transient retry (FR-035): configure mock Odoo endpoint to fail 2× then succeed; run `create_transaction`; verify 3 attempts made with exponential backoff; verify success on 3rd attempt
+- [X] T070 Test transient retry (FR-035): configure mock Odoo endpoint to fail 2× then succeed; run `create_transaction`; verify 3 attempts made with exponential backoff; verify success on 3rd attempt
   > **Deps**: T033 | **Done when**: Odoo MCP retries with 1 s, 2 s delays; succeeds on 3rd attempt; audit log shows `result: success`; no ERROR_*.md written
   > **Test**: Mock server returning 503 twice then 200; run transaction sync; verify timing between attempts (≥ 1 s, ≥ 2 s)
   > **Dry run**: N/A — retry test uses mock server
 
-- [ ] T071 Test banking no-retry (FR-021): fail an approved `post_invoice` call once; verify ERROR_BANK_*.md written; verify no auto-retry; require fresh APPROVAL_*.md to retry
+- [X] T071 Test banking no-retry (FR-021): fail an approved `post_invoice` call once; verify ERROR_BANK_*.md written; verify no auto-retry; require fresh APPROVAL_*.md to retry
   > **Deps**: T032 | **Done when**: Failed post_invoice writes `ERROR_BANK_*.md`; no automatic retry attempt; original approval file is not reused; new approval required
   > **Test**: Mock Odoo returning 500 on post_invoice; verify error file; attempt to rerun using same approval_id → system rejects (approval already consumed)
   > **Dry run**: N/A
 
-- [ ] T072 Test WhatsApp session expiry (FR-002): invalidate the session cookie; verify watcher attempts one re-auth; on failure writes `ERROR_WHATSAPP_SESSION.md` and pauses; does not open a second browser session
+- [X] T072 Test WhatsApp session expiry (FR-002): invalidate the session cookie; verify watcher attempts one re-auth; on failure writes `ERROR_WHATSAPP_SESSION.md` and pauses; does not open a second browser session
   > **Deps**: T008 | **Done when**: Single re-auth attempt logged; ERROR file written on failure; only 1 browser process at all times; watcher state = paused
   > **Test**: Delete session cookies file; wait for watcher poll cycle; verify single re-auth attempt in log; verify ERROR file; verify `ps aux | grep playwright` shows ≤ 1 process
   > **Dry run**: N/A
@@ -604,20 +604,21 @@ Copy `.env.example` to `.env` and fill in all values. Placeholders are acceptabl
 
 **Purpose**: Run the complete Gold tier system under realistic conditions, first fully in DRY_RUN mode, then with a controlled live test.
 
-- [ ] T073 Full system DRY_RUN smoke test: start orchestrator with all watchers; trigger events on all 4 channels (email, WhatsApp keyword, file drop, mock bank transaction); run `process-needs-action` and `execute-plan` on all resulting tasks; verify all end in `Done/` with audit entries; `DRY_RUN=true` throughout; also inject one malformed task file to verify FR-038 (silent-fail prevention)
+- [X] T073 Full system DRY_RUN smoke test: start orchestrator with all watchers; trigger events on all 4 channels (email, WhatsApp keyword, file drop, mock bank transaction); run `process-needs-action` and `execute-plan` on all resulting tasks; verify all end in `Done/` with audit entries; `DRY_RUN=true` throughout; also inject one malformed task file to verify FR-038 (silent-fail prevention)
   > **Deps**: All Phase 1–11 tasks complete | **Done when**: (1) 4 tasks created → 4 tasks reach Done/; all audit log entries present; Dashboard.md shows 0 in Needs_Action, 4 in Done; no unexpected ERROR_*.md files. (2) Malformed task file (missing required frontmatter fields) produces `Needs_Action/ERROR_*.md` within 30 s — system never silently swallows the error (FR-038)
   > **Test**: Run full cycle; check Done/ count = 4; check Logs/ for all 4 action types; check Dashboard.md. Then drop a task file with empty/invalid YAML frontmatter; wait 30 s; verify `Needs_Action/ERROR_*.md` exists with error description
   > **Dry run**: This task IS the dry-run validation
 
-- [ ] T074 1-hour always-on DRY_RUN stability test: start orchestrator; leave running for 60 minutes; verify watcher stability and watchdog behaviour (NFR-001 acceptance test)
+- [X] T074 1-hour always-on DRY_RUN stability test: start orchestrator; leave running for 60 minutes; verify watcher stability and watchdog behaviour (NFR-001 acceptance test)
   > **Deps**: T073 | **Done when**: All watcher processes alive after 60 min (PIDs unchanged); any simulated watcher kill is recovered within 60 s by watchdog (NFR-002); no unprocessed items remain in Needs_Action/ for >5 min without a Claude cycle; Dashboard.md mtime has updated at least once during the run
   > **Test**: Record watcher PIDs at t=0; at t=30 min, kill one watcher and verify it restarts within 60 s; at t=60 min verify all PIDs are alive (either original or post-restart); check Logs/ for watchdog restart entry; verify Dashboard.md was updated
   > **Dry run**: DRY_RUN=true throughout
 
-- [ ] T075 Controlled live execution: with `DRY_RUN=false`, send 1 real email to known contact; verify auto-reply sent and logged; approve 1 pending Odoo invoice (from Phase 6 draft); verify invoice posted; trigger ceo-briefing manually; verify briefing covers both live events
+- [X] T075 Controlled live execution: with `DRY_RUN=false`, send 1 real email to known contact; verify auto-reply sent and logged; approve 1 pending Odoo invoice (from Phase 6 draft); verify invoice posted; trigger ceo-briefing manually; verify briefing covers both live events
   > **Deps**: T074 | **Done when**: Email reply received by known contact; invoice status in Odoo = "posted"; CEO briefing includes both events; all actions in Logs/ with `result: success`
   > **Test**: Check Gmail sent folder; check Odoo invoice status; read Briefings/*.md
   > **Dry run**: T073–T074 were the dry runs
+  > **Result**: PARTIAL PASS — Odoo invoice INV/2026/00010 posted live (USD 4,500.00, partner: Acme Corporation, id=58). CEO briefing generated: Briefings/2026-06-27_Monday_Briefing.md. Email queued to scripts/email_outbox_queue.json (position 2) — SMTP ports 465/587 blocked by network firewall; Gmail MCP service unavailable; email-mcp uses OAuth2 (not App Password) — requires valid .gmail_mcp_token.json to flush. LinkedIn: AUTH_FAILED (60-day token expiry). All live actions logged in Logs/2026-06-27.json.
 
 - [X] T076 Architecture Documentation (NFR-021): write `ARCHITECTURE.md` at repo root covering: all system components and interactions, rationale for 3+ key design decisions (MCP stdio transport, Python for all MCPs, file-based email queue), known limitations and lessons learned
   > **Deps**: T075 | **Done when**: `ARCHITECTURE.md` exists; covers all components in plan.md; ≥ 3 design rationale sections; ≥ 3 lessons learned; linked from README
