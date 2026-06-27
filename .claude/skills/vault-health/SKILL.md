@@ -2,15 +2,17 @@
 name: vault-health
 description: |
   Checks the integrity and operational health of the AI_Employee_Vault.
-  Verifies: all required folders exist, no tasks orphaned in In_Progress/ (>2h),
-  no Pending_Approval files stale (>48h), Dashboard.md freshness (<30 min),
-  watcher state files present, Logs/ folder has recent entries.
-  Writes a health report to AI_Employee_Vault/Briefings/VAULT_HEALTH_<date>.md
-  and writes ERROR_*.md for any critical issues found.
-  Use this skill before running a CEO briefing, after a system restart, or any
-  time operational integrity is in question.
+  Verifies: all required folders exist (Folder Authority Matrix), no tasks orphaned
+  in In_Progress/ (>2h), stale_tasks_detected count for In_Progress/cloud/ and
+  In_Progress/local/, sync_lag_seconds from Sync/sync.log last entry,
+  health_status classification (healthy: lag<120s, degraded: lag<600s,
+  critical: lag>=600s or missing folders), Pending_Approval files stale (>48h),
+  Dashboard.md freshness, watcher state files.
+  Writes a health report to AI_Employee_Vault/Updates/VAULT_HEALTH_<ts>.md
+  (AGENT_ROLE-aware: cloud writes to Updates/ via safe_vault_write(),
+  local writes to Updates/ directly). Also writes ERROR_*.md for critical issues.
   Triggered by: "run vault-health skill", "check vault health", "vault status",
-  "is the vault healthy", "check system health".
+  "is the vault healthy", "check system health", cloud orchestrator daily 06:00 UTC.
 ---
 
 # Vault Health
@@ -28,7 +30,8 @@ Required folders:
   ✓/✗ Inbox/
   ✓/✗ Needs_Action/
   ✓/✗ In_Progress/
-  ✓/✗ In_Progress/local_agent/
+  ✓/✗ In_Progress/local/
+  ✓/✗ In_Progress/cloud/
   ✓/✗ Plans/
   ✓/✗ Pending_Approval/
   ✓/✗ Approved/
@@ -37,6 +40,9 @@ Required folders:
   ✓/✗ Briefings/
   ✓/✗ Accounting/
   ✓/✗ Logs/
+  ✓/✗ Updates/
+  ✓/✗ Signals/
+  ✓/✗ Sync/
 ```
 
 For any missing folder: record as `CRITICAL` issue and note it must be created
@@ -121,18 +127,45 @@ List files in `AI_Employee_Vault/Logs/` matching `YYYY-MM-DD.json`.
 
 ---
 
+## Step 7b — Check Sync Health (Platinum)
+
+Read the last non-comment line of `AI_Employee_Vault/Sync/sync.log`.
+
+Parse the timestamp (first pipe-delimited field). Compute `sync_lag_seconds`.
+
+Classify:
+- `healthy`: sync_lag_seconds < 120
+- `degraded`: 120 ≤ sync_lag_seconds < 600
+- `critical`: sync_lag_seconds ≥ 600
+
+Count files in `In_Progress/cloud/` and `In_Progress/local/` (excluding `.gitkeep`).
+Record as `stale_tasks_cloud` and `stale_tasks_local`.
+
+If `Sync/sync.log` does not exist: set `sync_lag_seconds: null`, `health_status: critical`.
+
+---
+
 ## Step 8 — Write Health Report
 
-Create `AI_Employee_Vault/Briefings/VAULT_HEALTH_<YYYY-MM-DD>.md`:
+Write `AI_Employee_Vault/Updates/VAULT_HEALTH_<ISO-ts>.md`.
+If `AGENT_ROLE=cloud`: use `safe_vault_write()` from `watchers/cloud_boundary.py`.
+If `AGENT_ROLE=local` (or unset): write directly.
+
+Schema:
 
 ```markdown
 ---
 type: vault_health_report
 generated_at: <ISO-8601Z>
+health_status: <healthy|degraded|critical>
+sync_lag_seconds: <int|null>
+stale_tasks_cloud: <int>
+stale_tasks_local: <int>
 overall_status: <OK|WARNING|CRITICAL>
+agent_id: <cloud_agent|local_agent>
 ---
 
-# Vault Health Report — <YYYY-MM-DD>
+# Vault Health Report — <YYYY-MM-DD T HH:MM>Z
 
 *Generated: <timestamp>*
 

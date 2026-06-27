@@ -1,0 +1,24 @@
+[Unit]
+Description=Personal AI Employee — Cloud Agent
+Documentation=https://github.com/ai-employee/Personal_AI_Employee
+After=network-online.target syncthing.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root
+EnvironmentFile=/root/.env.cloud
+ExecStart=/root/.venv/bin/python /root/cloud_orchestrator.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cloud-agent
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

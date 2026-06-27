@@ -1,0 +1,19 @@
+[Unit]
+Description=Syncthing — Vault Sync Daemon (Cloud VM)
+Documentation=https://docs.syncthing.net/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/syncthing -home /root/.config/syncthing
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=syncthing-cloud
+Environment=STNOUPGRADE=1
+
+[Install]
+WantedBy=multi-user.target

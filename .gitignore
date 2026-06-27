@@ -19,6 +19,10 @@ whatsapp_session/
 wa_*.txt
 watcher_*.txt
 
+# Watcher idempotency state and email queue (runtime state, may contain personal data)
+scripts/processed_*.json
+scripts/email_outbox_queue.json
+
 # Playwright browser profile (stores LinkedIn/site sessions — never commit)
 playwright-profile/
 
