@@ -1,8 +1,10 @@
-"""orchestrator.py — Gold-tier launcher for the AI Employee.
+"""orchestrator.py — Local-agent launcher for the AI Employee.
 
 Starts watchers as background/foreground processes. Supports selective
 watcher launch via --watcher flag and cron-mode logging via --cron flag.
 Gold-tier additions: watchdog loop, schedule-based cron jobs, vault health check.
+Platinum-tier additions: AGENT_ROLE guard (local only), cloud health monitor,
+stale-task monitor for In_Progress/cloud/, signals watcher.
 
 Usage:
     python orchestrator.py                          # default: filesystem + approval + whatsapp
@@ -19,6 +21,7 @@ Environment variables (see .env.example):
     DRY_RUN              — set to 'true' to log actions without executing (default: true)
     GMAIL_EMAIL          — Gmail address for GmailWatcher
     GMAIL_APP_PASSWORD   — Gmail App Password (16-char string from Google Account > Security)
+    AGENT_ROLE           — 'local' (default) or 'cloud'; cloud defers to cloud_orchestrator
 """
 
 import argparse
@@ -49,6 +52,17 @@ logging.basicConfig(
     format="%(asctime)s [Orchestrator] %(levelname)s: %(message)s",
 )
 logger = logging.getLogger("Orchestrator")
+
+# Platinum: AGENT_ROLE guard — local orchestrator must not start on cloud VM
+AGENT_ROLE = os.environ.get("AGENT_ROLE", "local")
+if AGENT_ROLE == "cloud":
+    logger.info("AGENT_ROLE=cloud detected — deferring to cloud_orchestrator.py")
+    try:
+        import cloud_orchestrator  # noqa: F401
+        cloud_orchestrator.main()
+    except ImportError:
+        logger.error("cloud_orchestrator.py not found. Deploy it to the cloud VM.")
+    sys.exit(0)
 
 VAULT_PATH = os.environ.get(
     "VAULT_PATH",
@@ -243,6 +257,55 @@ def _schedule_runner() -> None:
 # ---------------------------------------------------------------------------
 # Gold Tier: Vault health check (T016 + T017)
 # ---------------------------------------------------------------------------
+
+def check_cloud_agent_health(vault_path: Path) -> str:
+    """Determine cloud agent status from heartbeat file recency per heartbeat-protocol.md."""
+    updates_dir = vault_path / "Updates"
+    if not updates_dir.exists():
+        return "OFFLINE"
+    heartbeat_files = sorted(
+        updates_dir.glob("HEARTBEAT_*.md"),
+        key=lambda f: f.stat().st_mtime,
+        reverse=True,
+    )
+    if not heartbeat_files:
+        return "OFFLINE"
+    age_seconds = time.time() - heartbeat_files[0].stat().st_mtime
+    if age_seconds > 600:
+        return "OFFLINE"
+    if age_seconds > 360:
+        return "DEGRADED"
+    return "ONLINE"
+
+
+def _cloud_health_monitor() -> None:
+    """Check cloud agent heartbeat every 600s; write error + signal on OFFLINE detection."""
+    last_status = "UNKNOWN"
+    while True:
+        time.sleep(600)
+        try:
+            vault = Path(VAULT_PATH)
+            status = check_cloud_agent_health(vault)
+            if status != last_status:
+                logger.info(f"Cloud agent status changed: {last_status} → {status}")
+                last_status = status
+            if status == "OFFLINE":
+                ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                _write_error_file("CLOUD_AGENT_DOWN", "Cloud agent heartbeat absent >10 minutes. SSH to cloud VM and verify cloud_orchestrator.py.")
+                signal_dir = vault / "Signals"
+                signal_dir.mkdir(parents=True, exist_ok=True)
+                signal_file = signal_dir / f"SIGNAL_cloud_down_{ts}.md"
+                signal_file.write_text(
+                    f"---\nsignal_type: cloud_down\nseverity: critical\n"
+                    f"created: {datetime.now(timezone.utc).isoformat()}Z\n"
+                    f"agent_id: local_orchestrator\nrequires_human_action: true\n---\n\n"
+                    f"# Cloud Agent Offline\n\nHeartbeat absent for >10 minutes.\n",
+                    encoding="utf-8",
+                )
+                _write_log_entry("cloud_agent_offline", "orchestrator", "Updates/", "failure")
+        except Exception as e:
+            logger.error(f"Cloud health monitor error: {e}")
+
 
 def _vault_health_monitor(watcher_stop_events: dict) -> None:
     """Check vault availability every 5 minutes; pause watchers on failure."""
@@ -514,6 +577,43 @@ def main():
             daemon=True,
         )
         vault_health_t.start()
+
+        # Platinum: cloud health monitor (checks heartbeat every 10 min)
+        cloud_health_t = threading.Thread(
+            target=_cloud_health_monitor,
+            name="CloudHealthMonitor",
+            daemon=True,
+        )
+        cloud_health_t.start()
+        logger.info("Cloud health monitor started")
+
+        # Platinum: stale task monitor for In_Progress/cloud/
+        try:
+            from watchers.stale_task_monitor import run as stale_run
+            stale_t = threading.Thread(
+                target=stale_run,
+                args=(VAULT_PATH,),
+                name="StaleTaskMonitor",
+                daemon=True,
+            )
+            stale_t.start()
+            logger.info("Stale task monitor started (monitoring In_Progress/cloud/)")
+        except ImportError as e:
+            logger.warning(f"StaleTaskMonitor unavailable: {e}")
+
+        # Platinum: signals watcher
+        try:
+            from watchers.signals_watcher import run as signals_run
+            signals_t = threading.Thread(
+                target=signals_run,
+                args=(VAULT_PATH,),
+                name="SignalsWatcher",
+                daemon=True,
+            )
+            signals_t.start()
+            logger.info("Signals watcher started")
+        except ImportError as e:
+            logger.warning(f"SignalsWatcher unavailable: {e}")
 
         # Keep main thread alive
         try:

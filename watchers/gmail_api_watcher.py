@@ -26,16 +26,14 @@ from pathlib import Path
 from typing import List, Optional
 
 from watchers.base_watcher import BaseWatcher
+from watchers.cloud_boundary import safe_vault_write
+from watchers.gmail_api_auth import authenticate_gmail
 
 try:
-    from google.auth.transport.requests import Request
-    from google_auth_oauthlib.flow import InstalledAppFlow
-    import google.auth
-    from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
 except ImportError as e:
     raise ImportError(
-        "google-auth and google-api-python-client not installed. "
+        "google-api-python-client not installed. "
         "Run: pip install google-auth-oauthlib google-auth-httplib2 google-api-python-client"
     ) from e
 
@@ -92,44 +90,13 @@ class GmailApiWatcher(BaseWatcher):
 
     def _authenticate(self) -> bool:
         """Authenticate with Google API using OAuth 2.0. Returns True if successful."""
-        try:
-            creds = None
-
-            # Load existing token if available
-            if self._token_path.exists():
-                creds = google.auth.load_credentials_from_file(str(self._token_path))[0]
-
-            # If no valid token, perform OAuth flow
-            if not creds or not creds.valid:
-                if creds and creds.expired and creds.refresh_token:
-                    logger.info("Refreshing expired token...")
-                    req = Request()
-                    creds.refresh(req)
-                else:
-                    if not self._credentials_path.exists():
-                        logger.error(
-                            f"credentials.json not found at {self._credentials_path}. "
-                            "Download from Google Cloud Console."
-                        )
-                        return False
-
-                    logger.info("Starting OAuth flow...")
-                    flow = InstalledAppFlow.from_client_secrets_file(
-                        str(self._credentials_path), SCOPES
-                    )
-                    creds = flow.run_local_server(port=0)
-
-                # Save token for next run
-                self._token_path.write_text(creds.to_json(), encoding="utf-8")
-
-            self._service = build("gmail", "v1", credentials=creds)
-            logger.info("Gmail API authenticated successfully")
-            return True
-
-        except Exception as e:
-            logger.error(f"Authentication failed: {e}")
-            self._write_error_file("gmail_api_auth", str(e))
+        service, error = authenticate_gmail(self._credentials_path, self._token_path)
+        if error:
+            logger.error(f"Authentication failed: {error}")
+            self._write_error_file("gmail_api_auth", error)
             return False
+        self._service = service
+        return True
 
     def _get_user_email(self) -> Optional[str]:
         """Get authenticated user's email address."""
@@ -281,7 +248,7 @@ status: pending
 - [ ] Archive
 - [ ] Add to task list
 """
-        task_path.write_text(content, encoding="utf-8")
+        safe_vault_write(task_path, content, vault_path=self.vault_path)
         return task_path
 
     def _write_error_file(self, watcher_name: str, error_msg: str) -> None:
@@ -289,7 +256,8 @@ status: pending
         try:
             ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             error_path = self.needs_action / f"ERROR_{ts}_{watcher_name}.md"
-            error_path.write_text(
+            safe_vault_write(
+                error_path,
                 f"""---
 type: error
 source: {watcher_name}
@@ -302,7 +270,7 @@ status: pending
 
 {error_msg}
 """,
-                encoding="utf-8",
+                vault_path=self.vault_path,
             )
             logger.info(f"Wrote error file: {error_path.name}")
         except Exception as write_err:

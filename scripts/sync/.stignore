@@ -1,0 +1,33 @@
+# Syncthing exclusion list for AI Employee Vault
+# These files are NEVER transmitted between local and cloud machines.
+# Edit only to add new secret categories — never remove existing patterns.
+
+# Environment files — contain all credentials
+.env
+.env.*
+
+# Browser/Playwright session data
+*.session
+*_session/
+cookies/
+
+# Python runtime artifacts
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Watcher idempotency state — machine-local; must not sync
+scripts/processed_*.json
+scripts/email_outbox_queue.json
+
+# Sync coordination lock (machine-local)
+Sync/sync.lock
+
+# Git repository metadata
+.git/
+
+# OS artifacts
+.DS_Store
+Thumbs.db

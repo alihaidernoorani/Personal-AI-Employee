@@ -25,7 +25,24 @@ Create the `Briefings/` directory if it does not exist.
 
 ---
 
-## Step 2 — Read Input Sources
+## Step 2 — Check for Cloud-Prepared Briefing Data (Platinum)
+
+Before reading individual vault files, check for a cloud-prepared data file:
+
+1. List all files matching `AI_Employee_Vault/Updates/BRIEFING_DATA_*.md`
+2. Sort by date suffix (newest first)
+3. If a file exists **dated within the last 7 days**:
+   - Read it and extract the following fields:
+     - `cloud_agent_uptime_pct` — percentage uptime from heartbeat gap analysis
+     - `signal_summary` — list of signals grouped by type and severity
+     - `social_post_count` — platform breakdown of social posts
+     - `vault_health_status` — overall vault health
+   - Use these as supplemental data in Step 5 (see **Cloud Agent Uptime** section below)
+4. If **no file found within 7 days**: set `cloud_data_available = false`; the briefing will note "Cloud agent data unavailable"
+
+---
+
+## Step 3 — Read Input Sources
 
 Read the following files in order:
 
@@ -65,7 +82,7 @@ Read the following files in order:
 
 ---
 
-## Step 3 — Calculate Revenue Metrics
+## Step 4 — Calculate Revenue Metrics
 
 Primary source is **Odoo** (via `list_invoices` MCP calls from Step 2).
 Fallback to `Bank_Transactions.md` if Odoo is unavailable.
@@ -79,7 +96,7 @@ If no invoices found for the period, write "No invoices recorded in Odoo" in the
 
 ---
 
-## Step 4 — Identify Cost Optimisation Issues
+## Step 5 — Identify Cost Optimisation Issues
 
 Apply the subscription audit rules from `Business_Goals.md`:
 - For each subscription transaction in `Bank_Transactions.md`, check:
@@ -91,7 +108,7 @@ If none, write: "No subscription issues identified this week."
 
 ---
 
-## Step 5 — Write the Briefing File
+## Step 6 — Write the Briefing File
 
 Write `AI_Employee_Vault/Briefings/<week_ending>_Monday_Briefing.md` with the following structure:
 
@@ -163,6 +180,25 @@ Status legend: 🟢 On/Above Target | 🟡 Within 20% | 🔴 >20% Below Target
 | Twitter/X | <count> | <count or "N/A"> |
 
 <If no posts: "No social media posts this week." in the table notes>
+
+---
+
+## Cloud Agent Uptime
+
+<If cloud_data_available = true:>
+
+| Metric | Value |
+|--------|-------|
+| Uptime | <cloud_agent_uptime_pct>% |
+| Vault Sync Health | <vault_health_status> |
+| Signals This Week | <count by severity> |
+
+<signal_summary — bullet list grouped by signal_type>
+
+<If cloud_data_available = false:>
+
+Cloud agent data unavailable. No BRIEFING_DATA_*.md file found within the last 7 days.
+Check that the cloud agent is running and vault sync is operational.
 ```
 
 **Colour coding for Revenue Status:**
@@ -172,7 +208,7 @@ Status legend: 🟢 On/Above Target | 🟡 Within 20% | 🔴 >20% Below Target
 
 ---
 
-## Step 6 — Log the Briefing Generation
+## Step 7 — Log the Briefing Generation
 
 Append a NDJSON entry to `AI_Employee_Vault/Logs/<YYYY-MM-DD>.json`:
 

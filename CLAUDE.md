@@ -402,6 +402,8 @@ and are immediately usable by Claude Code.
 - Obsidian vault markdown files only — no external databases (002-silver-ai-employee)
 - Python 3.13+ (watchers, orchestrator, Odoo MCP); Node.js v24+ LTS (Email MCP, browser-mcp) + `watchdog>=4.0.0`, `playwright>=1.40.0`, `python-dotenv>=1.0.0`, `mcp>=1.0.0`, `requests>=2.31.0` (Odoo JSON-RPC), `schedule>=1.2.0` (cron fallback) (003-gold-ai-employee)
 - Obsidian vault (markdown files); `scripts/processed_*.json` (watcher idempotency state); local JSON queue files for email/event buffering during MCP outages (003-gold-ai-employee)
+- Python 3.13+ (cloud watchers, heartbeat writer, stale-task monitor, orchestrator extensions); inherits all Gold Python dependencies on both machines (004-platinum-ai-employee)
+- Obsidian vault (markdown files) replicated on both machines; `Sync/sync.log` (append-only plain text); heartbeat files auto-expire after 10 minutes (004-platinum-ai-employee)
 
 ## Recent Changes
 - 001-bronze-ai-employee: Added Python 3.12+ (WSL2 Ubuntu) + `watchdog>=4.0.0`, `python-dotenv>=1.0.0`

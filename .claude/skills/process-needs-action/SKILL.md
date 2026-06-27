@@ -27,7 +27,41 @@ communication priorities.
 
 ---
 
-## Step 2 — Inventory Needs_Action
+## Step 2 — Check for Cloud-Prepared Tasks (Platinum)
+
+Before scanning Needs_Action/, check `AI_Employee_Vault/In_Progress/local/` for
+tasks moved there by the cloud agent (tasks with a linked cloud-prepared plan).
+
+For each file in `In_Progress/local/` (excluding `.gitkeep`):
+
+1. Read the task file's YAML frontmatter
+2. Look for a `plan_ref` field pointing to `Plans/PLAN_*.md`
+3. If `plan_ref` exists AND that plan file exists:
+   - Read the plan file
+   - Extract `action_type` and `mcp_tool` fields
+   - **Validate** that the referenced MCP tool is available locally:
+     - `email-mcp/send_email` → check `email-mcp` is in MCP config
+     - `social-mcp/post_*` → check `social-mcp` is in MCP config
+     - `odoo-mcp/post_invoice` → check `odoo-mcp` is in MCP config
+   - If tool is available AND `requires_approval: true` in plan:
+     → Write `Pending_Approval/APPROVAL_*.md` using the plan's MCP action spec
+     → Move task from `In_Progress/local/` to `Done/DONE_<task>.md`
+   - If tool is available AND `requires_approval: false`:
+     → Pass to execute-plan skill directly (write an `action_trigger` to Needs_Action/)
+     → Move task to `Done/`
+   - If tool is NOT available:
+     → Write `Needs_Action/ERROR_<ts>_mcp-unavailable.md` with plan reference
+     → Leave task in `In_Progress/local/`
+   - **Log** with `originating_agent: cloud_agent, executing_agent: local`
+
+4. If `plan_ref` does NOT exist in the task file: leave it in `In_Progress/local/`
+   for normal processing (will be picked up as orphaned by vault-health skill)
+
+After processing all `In_Progress/local/` cloud-prepared tasks, proceed to Step 3.
+
+---
+
+## Step 3 — Inventory Needs_Action
 
 List all `.md` files in `AI_Employee_Vault/Needs_Action/`. Skip any file whose
 name starts with `_` (draft/claimed) or `ERROR_` (already failed).
@@ -38,7 +72,7 @@ Sort the remaining files by:
 
 ---
 
-## Step 3 — Process Each Item
+## Step 4 — Process Each Item
 
 For each `.md` file in the sorted list, do the following. If any sub-step
 fails, follow the **Error Path** at the bottom of this section instead.
@@ -178,7 +212,7 @@ Human-in-the-Loop Rules, all outbound email requires explicit human approval.
 
 ---
 
-## Step 4 — Move Task to Done
+## Step 5 — Move Task to Done
 
 After successfully writing the Plan file (and Approval file if applicable) for a task:
 
@@ -188,7 +222,7 @@ rest of the original filename exactly).
 
 ---
 
-## Step 5 — Update Dashboard.md
+## Step 6 — Update Dashboard.md
 
 After all tasks are processed, rewrite `AI_Employee_Vault/Dashboard.md`
 dynamic tokens. If `Dashboard.md` is missing, create it from scratch with
@@ -210,7 +244,7 @@ Replace each token with live data:
 
 ---
 
-## Step 6 — Log the Session
+## Step 7 — Log the Session
 
 Append one NDJSON line per processed task to
 `AI_Employee_Vault/Logs/YYYY-MM-DD.json` (use today's UTC date for the

@@ -25,6 +25,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from watchers.base_watcher import BaseWatcher
+from watchers.cloud_boundary import safe_vault_write
 
 load_dotenv()
 
@@ -165,7 +166,7 @@ New email from {sender} with subject: {subject}
 - [ ] Draft a reply
 - [ ] File the email
 """
-        task_path.write_text(content, encoding="utf-8")
+        safe_vault_write(task_path, content, vault_path=self.vault_path)
         return task_path
 
     def _write_error_file(self, watcher_name: str, error_msg: str) -> None:
@@ -177,9 +178,10 @@ New email from {sender} with subject: {subject}
                 / "Needs_Action"
                 / f"ERROR_{ts}_{watcher_name}.md"
             )
-            error_path.write_text(
+            safe_vault_write(
+                error_path,
                 f"---\ntype: error\nsource: {watcher_name}\nreceived: \"{datetime.now(timezone.utc).isoformat()}Z\"\npriority: urgent\nstatus: pending\n---\n\n## Error\n\n{error_msg}\n",
-                encoding="utf-8",
+                vault_path=self.vault_path,
             )
             logger.info(f"Wrote error file: {error_path.name}")
         except Exception as write_err:

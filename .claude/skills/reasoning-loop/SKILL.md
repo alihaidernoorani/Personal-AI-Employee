@@ -63,7 +63,7 @@ Set internal state:
 
 ## Step 2 — Write State File
 
-Write `AI_Employee_Vault/In_Progress/claude_code/LOOP_<timestamp>_state.md`:
+Write `AI_Employee_Vault/In_Progress/local/LOOP_<timestamp>_state.md`:
 
 ```markdown
 ---
@@ -192,7 +192,7 @@ completed_at: "<ISO-8601Z>"
 
 ### 5b. Move state file to Done
 
-Move `AI_Employee_Vault/In_Progress/claude_code/LOOP_<timestamp>_state.md`
+Move `AI_Employee_Vault/In_Progress/local/LOOP_<timestamp>_state.md`
 → `AI_Employee_Vault/Done/DONE_LOOP_<timestamp>_state.md`
 
 ### 5c. Log completion
