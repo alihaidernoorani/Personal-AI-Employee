@@ -32,7 +32,9 @@ Inbox (file drop) ──► Filesystem Watcher ──► Needs_Action/
 
 ---
 
-## Current Tier: Silver
+## Current Tier: Gold
+
+### Bronze & Silver (all complete)
 
 | Requirement | Status |
 |-------------|--------|
@@ -44,11 +46,32 @@ Inbox (file drop) ──► Filesystem Watcher ──► Needs_Action/
 | WhatsApp Watcher (Playwright, 60s daemon) | Done |
 | Approval Watcher (5s poll) | Done |
 | Agent Skill: `process-needs-action` (extended for email+whatsapp) | Done |
-| Agent Skill: `execute-plan` (email-mcp + LinkedIn) | Done |
+| Agent Skill: `execute-plan` (email-mcp + LinkedIn + social) | Done |
 | Agent Skill: `linkedin-post` (lead-gen content) | Done |
 | MCP Server: `email-mcp` (send/draft/search) | Done |
-| Cron scheduling: `scripts/install-cron.sh` | Done |
+| Cron scheduling: Task Scheduler (Windows) + schedule library | Done |
 | `Business_Goals.md` with OKRs and LinkedIn topics | Done |
+
+### Gold (all complete)
+
+| Requirement | Status |
+|-------------|--------|
+| Full cross-domain integration (Personal + Business) | Done |
+| Odoo MCP (JSON-RPC, HITL, rate limiting, dry-run) | Done |
+| Finance Watcher (CSV → Bank_Transactions.md) | Done |
+| MCP Server: `social-mcp` (LinkedIn, Facebook, Instagram, Twitter) | Done |
+| MCP Server: `odoo-mcp` (invoices, transactions, expenses) | Done |
+| Agent Skill: `facebook-post` + `facebook-integration` | Done |
+| Agent Skill: `odoo-integration` | Done |
+| Agent Skill: `ceo-briefing` (weekly CEO briefing generation) | Done |
+| Agent Skill: `reasoning-loop` (Ralph Wiggum persistence loop) | Done |
+| Ralph Wiggum Stop hook (`check_loop_complete.py` + `.claude/settings.json`) | Done |
+| Orchestrator watchdog (auto-restart, 3/hour limit) | Done |
+| Vault health monitor + temp-path fallback | Done |
+| Weekly CEO Briefing scheduled (Sunday 23:00) | Done |
+| Comprehensive audit logging (NDJSON, 90-day retention) | Done |
+| Error recovery (ERROR_*.md, exponential backoff, HITL for payments) | Done |
+| Architecture documentation (`CLAUDE.md`, `specs/003-gold-ai-employee/`) | Done |
 
 ---
 
@@ -96,7 +119,7 @@ VAULT_PATH="$PWD/AI_Employee_Vault" .venv/bin/python orchestrator.py
 
 Expected output:
 ```
-[Orchestrator] INFO: AI Employee Orchestrator starting (Bronze tier)
+[Orchestrator] INFO: AI Employee Orchestrator starting (Gold tier)
 [FilesystemWatcher] INFO: Watching inbox: .../AI_Employee_Vault/Inbox
 ```
 
@@ -313,4 +336,4 @@ update `.env` and `.mcp.json`, and restart the orchestrator.
 
 ## Submission
 
-- Tier: **Silver**
+- Tier: **Gold**

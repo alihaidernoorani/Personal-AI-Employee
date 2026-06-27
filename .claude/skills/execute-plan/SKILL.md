@@ -210,20 +210,9 @@ Append one NDJSON line per executed action to
 
 ---
 
-## Step 4 — Update Dashboard.md
-
-After processing all triggers, update `AI_Employee_Vault/Dashboard.md`:
-
-- `<!-- AI_EMPLOYEE:PENDING_APPROVALS -->` — count of files in `Pending_Approval/`
-- `<!-- AI_EMPLOYEE:PENDING_APPROVAL_LIST -->` — bullet list of filenames in `Pending_Approval/`
-- `<!-- AI_EMPLOYEE:RECENT_COMPLETIONS -->` — last 5 `DONE_*` files sorted newest-first
-- `<!-- AI_EMPLOYEE:UPDATED -->` — current UTC timestamp
-
----
-
 ## Completion Signal
 
-When all triggers are processed and Dashboard.md is updated, output exactly:
+When all triggers are processed, output exactly:
 
 ```
 <promise>TASK_COMPLETE</promise>

@@ -35,13 +35,23 @@ Read the following files in order:
    - Subscription audit rules
    - Upcoming deadlines
 
-2. **`AI_Employee_Vault/Bank_Transactions.md`** — extract:
-   - All transaction rows
-   - Sum positive amounts (income) for the current week (last 7 days)
-   - Sum positive amounts (income) for the current month (MTD)
-   - Identify any recurring subscriptions (negative amounts with subscription category)
+2. **Odoo invoices via MCP** — call the `list_invoices` tool (odoo-mcp) with:
+   - `date_from`: 7 days ago (YYYY-MM-DD)
+   - `date_to`: today (YYYY-MM-DD)
+   - `state`: `"posted"` (confirmed invoices only)
 
-3. **`AI_Employee_Vault/Done/`** — list all files modified in the last 7 days:
+   From the result, sum `amount` values for:
+   - **Weekly Revenue**: all returned invoices
+   - **MTD Revenue**: re-call `list_invoices` with `date_from` = first day of current month
+
+   If the odoo-mcp tool returns an error or is unavailable, fall back to
+   **`AI_Employee_Vault/Bank_Transactions.md`** and note "Odoo unavailable — using bank log".
+
+3. **`AI_Employee_Vault/Bank_Transactions.md`** — extract (fallback or supplement):
+   - All transaction rows not already captured by Odoo
+   - Identify recurring subscriptions (negative amounts with subscription category)
+
+4. **`AI_Employee_Vault/Done/`** — list all files modified in the last 7 days:
    - Read each file's frontmatter for type and description
    - Build a summary list of completed tasks
 
@@ -57,14 +67,15 @@ Read the following files in order:
 
 ## Step 3 — Calculate Revenue Metrics
 
-From `Bank_Transactions.md`:
+Primary source is **Odoo** (via `list_invoices` MCP calls from Step 2).
+Fallback to `Bank_Transactions.md` if Odoo is unavailable.
 
-- **Weekly Revenue**: Sum of positive amounts where date is within the last 7 days
-- **MTD Revenue**: Sum of positive amounts where date is in the current calendar month
+- **Weekly Revenue**: Sum of `amount` from posted Odoo invoices in last 7 days
+- **MTD Revenue**: Sum of `amount` from posted Odoo invoices since first of current month
 - **Weekly Target**: Read from `Business_Goals.md`
 - **MTD Target**: Read from `Business_Goals.md`
 
-If no transactions found for the period, write "No transactions recorded" in the table.
+If no invoices found for the period, write "No invoices recorded in Odoo" in the table.
 
 ---
 

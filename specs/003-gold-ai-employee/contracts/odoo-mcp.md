@@ -1,7 +1,7 @@
 # Contract: Odoo MCP
 
 **Server**: `mcp-servers/odoo-mcp/server.py` | **Transport**: stdio | **Runtime**: Python 3.13+
-**Status**: ❌ To build.
+**Status**: ✅ Built. Live at `http://localhost:8069` (Docker, `DRY_RUN=false`).
 **Target**: Odoo Community 19+ | **API**: External JSON-RPC (`/web/dataset/call_kw`)
 
 ## Responsibilities

@@ -32,6 +32,12 @@ try:
 except ImportError:
     REQUESTS_AVAILABLE = False
 
+try:
+    from requests_oauthlib import OAuth1
+    OAUTH1_AVAILABLE = True
+except ImportError:
+    OAUTH1_AVAILABLE = False
+
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
 
@@ -47,6 +53,10 @@ FACEBOOK_PAGE_ACCESS_TOKEN = os.getenv("FACEBOOK_ACCESS_TOKEN", "")
 FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID", "")
 INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
 TWITTER_BEARER_TOKEN = os.getenv("TWITTER_BEARER_TOKEN", "")
+TWITTER_API_KEY = os.getenv("TWITTER_API_KEY", "")
+TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET", "")
+TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN", "")
+TWITTER_ACCESS_TOKEN_SECRET = os.getenv("TWITTER_ACCESS_TOKEN_SECRET", "")
 
 server = Server("social-mcp")
 
@@ -161,7 +171,7 @@ def _post_facebook(content: str, page_id: str, approval_id: str) -> dict:
         return {"error": "FACEBOOK_PAGE_ID not configured", "platform": "facebook", "retryable": False}
     try:
         resp = requests.post(
-            f"https://graph.facebook.com/v18.0/{pid}/feed",
+            f"https://graph.facebook.com/v20.0/{pid}/feed",
             params={"access_token": FACEBOOK_PAGE_ACCESS_TOKEN},
             json={"message": content},
             timeout=15,
@@ -195,15 +205,17 @@ def _post_instagram(caption: str, image_url: str | None, approval_id: str) -> di
         ig_user_id = os.getenv("INSTAGRAM_USER_ID", "")
         if not ig_user_id:
             return {"error": "INSTAGRAM_USER_ID not configured", "platform": "instagram", "retryable": False}
-        container_payload: dict = {"caption": caption, "access_token": INSTAGRAM_ACCESS_TOKEN}
-        if image_url:
-            container_payload["image_url"] = image_url
-            container_payload["media_type"] = "IMAGE"
-        else:
-            container_payload["media_type"] = "TEXT"
+        if not image_url:
+            return {"error": "image_url is required — Instagram Graph API does not support text-only posts", "platform": "instagram", "retryable": False}
+        container_payload: dict = {
+            "caption": caption,
+            "image_url": image_url,
+            "media_type": "IMAGE",
+            "access_token": INSTAGRAM_ACCESS_TOKEN,
+        }
 
         container_resp = requests.post(
-            f"https://graph.facebook.com/v18.0/{ig_user_id}/media",
+            f"https://graph.facebook.com/v20.0/{ig_user_id}/media",
             params=container_payload,
             timeout=15,
         )
@@ -211,14 +223,25 @@ def _post_instagram(caption: str, image_url: str | None, approval_id: str) -> di
             return {"error": "AUTH_FAILED", "platform": "instagram", "retryable": False}
         if container_resp.status_code >= 500:
             return {"error": "PLATFORM_API_DOWN", "platform": "instagram", "retryable": True}
-        container_resp.raise_for_status()
+        if not container_resp.ok:
+            try:
+                fb_error = container_resp.json()
+            except Exception:
+                fb_error = container_resp.text
+            return {"error": f"FB_API_{container_resp.status_code}", "detail": fb_error, "platform": "instagram", "retryable": False}
         container_id = container_resp.json().get("id")
 
         publish_resp = requests.post(
-            f"https://graph.facebook.com/v18.0/{ig_user_id}/media_publish",
+            f"https://graph.facebook.com/v20.0/{ig_user_id}/media_publish",
             params={"creation_id": container_id, "access_token": INSTAGRAM_ACCESS_TOKEN},
             timeout=15,
         )
+        if not publish_resp.ok:
+            try:
+                fb_error = publish_resp.json()
+            except Exception:
+                fb_error = publish_resp.text
+            return {"error": f"FB_API_{publish_resp.status_code}", "detail": fb_error, "platform": "instagram", "retryable": False}
         publish_resp.raise_for_status()
         post_id = publish_resp.json().get("id", "unknown")
         return {
@@ -245,15 +268,21 @@ def _post_twitter(content: str, approval_id: str) -> dict:
         return {"dry_run": True, "would_have": f"tweet: {content[:50]}"}
     if not REQUESTS_AVAILABLE:
         return {"error": "requests library not installed", "platform": "twitter", "retryable": False}
-    if not TWITTER_BEARER_TOKEN:
-        return {"error": "AUTH_FAILED", "platform": "twitter", "retryable": False}
+    # OAuth 1.0a is required for posting — Bearer Token alone is read-only
+    if not OAUTH1_AVAILABLE:
+        return {"error": "requests-oauthlib not installed — run: pip install requests-oauthlib", "platform": "twitter", "retryable": False}
+    if not all([TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET]):
+        return {"error": "AUTH_FAILED", "detail": "TWITTER_API_KEY/SECRET/ACCESS_TOKEN/ACCESS_TOKEN_SECRET not configured", "platform": "twitter", "retryable": False}
     try:
+        auth = OAuth1(
+            TWITTER_API_KEY,
+            TWITTER_API_SECRET,
+            TWITTER_ACCESS_TOKEN,
+            TWITTER_ACCESS_TOKEN_SECRET,
+        )
         resp = requests.post(
             "https://api.twitter.com/2/tweets",
-            headers={
-                "Authorization": f"Bearer {TWITTER_BEARER_TOKEN}",
-                "Content-Type": "application/json",
-            },
+            auth=auth,
             json={"text": content},
             timeout=15,
         )
@@ -267,7 +296,7 @@ def _post_twitter(content: str, approval_id: str) -> dict:
         tweet_id = resp.json().get("data", {}).get("id", "unknown")
         return {
             "tweet_id": tweet_id,
-            "url": f"https://twitter.com/i/web/status/{tweet_id}",
+            "url": f"https://x.com/i/web/status/{tweet_id}",
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
     except requests.ConnectionError:

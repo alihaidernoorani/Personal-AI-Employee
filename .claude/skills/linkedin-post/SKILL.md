@@ -177,17 +177,7 @@ python scripts/linkedin_post.py --token-info
 
 ---
 
-## Step 7 — Update Dashboard.md
-
-Update `AI_Employee_Vault/Dashboard.md` pending approvals section:
-
-- Increment `<!-- AI_EMPLOYEE:PENDING_APPROVALS -->` count by 1
-- Add the new `APPROVAL_*_linkedin.md` filename to `<!-- AI_EMPLOYEE:PENDING_APPROVAL_LIST -->`
-- Update `<!-- AI_EMPLOYEE:UPDATED -->` to current UTC timestamp
-
----
-
-## Step 8 — Log the Action
+## Step 7 — Log the Action
 
 Append one NDJSON line to `AI_Employee_Vault/Logs/YYYY-MM-DD.json`:
 
