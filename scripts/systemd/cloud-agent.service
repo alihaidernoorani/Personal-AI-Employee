@@ -7,9 +7,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/root
+WorkingDirectory=/root/Personal_AI_Employee
 EnvironmentFile=/root/.env.cloud
-ExecStart=/root/.venv/bin/python /root/cloud_orchestrator.py
+ExecStart=/root/.venv/bin/python /root/Personal_AI_Employee/cloud_orchestrator.py
 Restart=always
 RestartSec=10
 StandardOutput=journal

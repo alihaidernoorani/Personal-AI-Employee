@@ -5,7 +5,7 @@
 # Designed to be re-run safely without data loss.
 set -euo pipefail
 
-REPO_URL="${CLOUD_REPO_URL:-https://github.com/ali-haider/Personal_AI_Employee.git}"
+REPO_URL="${CLOUD_REPO_URL:-https://github.com/alihaidernoorani/Personal-AI-Employee.git}"
 PROJECT_DIR="/root/Personal_AI_Employee"
 VENV_DIR="/root/.venv"
 VAULT_PATH_DEFAULT="/root/AI_Employee_Vault"
@@ -18,14 +18,29 @@ log() { echo "[provision] $*"; }
 # --------------------------------------------------------------------------
 log "Installing system dependencies..."
 apt-get update -qq
+apt-get install -y -qq software-properties-common ca-certificates gnupg curl apt-transport-https
+
+# Python 3.13 via deadsnakes PPA
+log "Adding deadsnakes PPA for Python 3.13..."
+add-apt-repository -y ppa:deadsnakes/ppa
+apt-get update -qq
 apt-get install -y -qq \
     python3.13 python3.13-venv python3.13-dev \
     python3-pip \
-    git rsync curl jq \
-    nginx certbot python3-certbot-nginx \
-    docker.io docker-compose-plugin \
-    ca-certificates gnupg \
-    apt-transport-https
+    git rsync jq \
+    nginx certbot python3-certbot-nginx
+
+# Docker via official repo
+log "Installing Docker..."
+if ! command -v docker &>/dev/null; then
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+        > /etc/apt/sources.list.d/docker.list
+    apt-get update -qq
+    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+fi
 
 # --------------------------------------------------------------------------
 # Step 2: Install Syncthing

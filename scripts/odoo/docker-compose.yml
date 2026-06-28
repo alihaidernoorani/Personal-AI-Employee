@@ -39,14 +39,4 @@ services:
 
 volumes:
   pg-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /var/lib/odoo-docker/pg-data
   odoo-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /var/lib/odoo-docker/odoo-data

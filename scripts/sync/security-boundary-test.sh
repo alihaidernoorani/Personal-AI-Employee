@@ -49,8 +49,8 @@ run_check "No .env file under /root/" \
     "find /root/ -name '.env' -not -path '/root/.local/*' 2>/dev/null | head -5"
 
 # Check 2: No .env.* files
-run_check "No .env.* files under /root/ (excluding .env.cloud)" \
-    "find /root/ -name '.env.*' -not -name '.env.cloud' -not -path '/root/.local/*' 2>/dev/null | head -5"
+run_check "No .env.* files under /root/ (excluding .env.cloud and .env.example)" \
+    "find /root/ -name '.env.*' -not -name '.env.cloud' -not -name '.env.example' -not -path '/root/.local/*' 2>/dev/null | head -5"
 
 # Check 3: No *.token files
 run_check "No *.token credential files under /root/" \
