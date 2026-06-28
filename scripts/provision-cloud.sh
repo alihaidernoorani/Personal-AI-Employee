@@ -5,7 +5,7 @@
 # Designed to be re-run safely without data loss.
 set -euo pipefail
 
-REPO_URL="${CLOUD_REPO_URL:-https://github.com/ali-haider/Personal_AI_Employee.git}"
+REPO_URL="${CLOUD_REPO_URL:-https://github.com/alihaidernoorani/Personal-AI-Employee.git}"
 PROJECT_DIR="/root/Personal_AI_Employee"
 VENV_DIR="/root/.venv"
 VAULT_PATH_DEFAULT="/root/AI_Employee_Vault"
