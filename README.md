@@ -258,6 +258,19 @@ Filesystem rename is atomic. First agent to move a file from `Needs_Action/` to 
 
 ---
 
+## Lessons Learned
+
+**1. WSL2 + NTFS polling is the limiting factor on local sync latency**
+Syncthing's inotify watcher does not work on WSL2 NTFS `/mnt/c` mounts. The local agent must use `PollingObserver(timeout=3)` instead of the default inotify-based watcher, which adds ~3s median latency vs sub-second detection on the cloud Linux VM. Solution: run Syncthing natively on Windows (not inside WSL2) and point it at the Windows vault path directly.
+
+**2. The security boundary requires all three enforcement layers — any one layer alone is bypassable**
+Relying on `.stignore` alone fails if Syncthing is reconfigured. Relying on `safe_vault_write()` alone fails if a new watcher bypasses the import. Relying on `cloud_orchestrator.py` startup checks alone fails if the orchestrator is restarted with a patched file. Only the combination of Syncthing exclusion + code guard + constitution check creates a breach-resistant boundary.
+
+**3. Vault-as-bus requires careful single-writer discipline or Dashboard.md becomes a conflict hotspot**
+In early testing, both agents occasionally tried to update `Dashboard.md` during the same sync window, causing Syncthing `.sync-conflict-*` files. The `PROHIBITED_CLOUD_WRITE_PATHS` list and Single Writer Rule in `cloud_boundary.py` eliminated this entirely. Any future multi-agent expansion must assign exclusive write authority to every shared file, not just `Dashboard.md`.
+
+---
+
 ## Cost
 
 | Option | Monthly | Notes |
