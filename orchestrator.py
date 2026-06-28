@@ -87,7 +87,7 @@ _vault_lock = threading.Lock()
 def _write_log_entry(action_type: str, actor: str, target: str, result: str, parameters: dict = None) -> None:
     """Write NDJSON entry to Logs/YYYY-MM-DD.json."""
     try:
-        log_dir = Path(VAULT_PATH) / "Logs"
+        log_dir = Path(VAULT_PATH) / "_System" / "Logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.json"
         entry = {
@@ -176,7 +176,7 @@ def _write_error_file(slug: str, message: str) -> None:
     """Write an ERROR_*.md to Needs_Action/."""
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     fname = f"ERROR_{slug}_{ts}.md"
-    target = Path(VAULT_PATH) / "Needs_Action" / fname
+    target = Path(VAULT_PATH) / "_System" / "Needs_Action" / fname
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         f"---\ntype: error\nreceived: {datetime.now(timezone.utc).isoformat()}Z\n---\n\n# Error: {slug}\n\n{message}\n",
@@ -221,7 +221,7 @@ def _run_process_needs_action() -> None:
 
 def _clean_old_logs() -> None:
     """Delete log files older than 90 days."""
-    log_dir = Path(VAULT_PATH) / "Logs"
+    log_dir = Path(VAULT_PATH) / "_System" / "Logs"
     if not log_dir.exists():
         return
     cutoff = time.time() - (90 * 24 * 3600)
@@ -260,7 +260,7 @@ def _schedule_runner() -> None:
 
 def check_cloud_agent_health(vault_path: Path) -> str:
     """Determine cloud agent status from heartbeat file recency per heartbeat-protocol.md."""
-    updates_dir = vault_path / "Updates"
+    updates_dir = vault_path / "_System" / "Updates"
     if not updates_dir.exists():
         return "OFFLINE"
     heartbeat_files = sorted(
@@ -292,7 +292,7 @@ def _cloud_health_monitor() -> None:
             if status == "OFFLINE":
                 ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
                 _write_error_file("CLOUD_AGENT_DOWN", "Cloud agent heartbeat absent >10 minutes. SSH to cloud VM and verify cloud_orchestrator.py.")
-                signal_dir = vault / "Signals"
+                signal_dir = vault / "_System" / "Signals"
                 signal_dir.mkdir(parents=True, exist_ok=True)
                 signal_file = signal_dir / f"SIGNAL_cloud_down_{ts}.md"
                 signal_file.write_text(
@@ -356,7 +356,7 @@ def _sync_temp_to_vault() -> None:
     synced = 0
     for f in temp.iterdir():
         if f.is_file() and f.name != "ERROR_VAULT_UNAVAILABLE.md":
-            dest = vault / "Needs_Action" / f.name
+            dest = vault / "_System" / "Needs_Action" / f.name
             shutil.copy2(str(f), str(dest))
             f.unlink()
             synced += 1

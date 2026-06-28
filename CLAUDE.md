@@ -404,6 +404,8 @@ and are immediately usable by Claude Code.
 - Obsidian vault (markdown files); `scripts/processed_*.json` (watcher idempotency state); local JSON queue files for email/event buffering during MCP outages (003-gold-ai-employee)
 - Python 3.13+ (cloud watchers, heartbeat writer, stale-task monitor, orchestrator extensions); inherits all Gold Python dependencies on both machines (004-platinum-ai-employee)
 - Obsidian vault (markdown files) replicated on both machines; `Sync/sync.log` (append-only plain text); heartbeat files auto-expire after 10 minutes (004-platinum-ai-employee)
+- Obsidian Markdown + Dataview DQL 0.5.68 + JSON (plugin config) + Dataview 0.5.68, Buttons 0.9.13, Meta Bind 1.4.15, Kanban 2.0.51, Homepage 4.4.4 (all installed) (001-vault-redesign-interactive)
+- Obsidian vault markdown files (`AI_Employee_Vault/`) — no external database (001-vault-redesign-interactive)
 
 ## Recent Changes
 - 001-bronze-ai-employee: Added Python 3.12+ (WSL2 Ubuntu) + `watchdog>=4.0.0`, `python-dotenv>=1.0.0`

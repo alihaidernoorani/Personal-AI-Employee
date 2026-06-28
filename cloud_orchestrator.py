@@ -65,7 +65,7 @@ _MAX_RESTARTS = 3
 
 def _write_signal(signal_type: str, severity: str, message: str, requires_human: bool = False) -> None:
     """Write a SIGNAL_*.md to Signals/ directory."""
-    signals_dir = Path(VAULT_PATH) / "Signals"
+    signals_dir = Path(VAULT_PATH) / "_System" / "Signals"
     signals_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     signal_file = signals_dir / f"SIGNAL_{signal_type}_{ts}.md"
@@ -86,7 +86,7 @@ def _write_signal(signal_type: str, severity: str, message: str, requires_human:
 def _write_error(slug: str, message: str) -> None:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     fname = f"ERROR_{slug}_{ts}.md"
-    target = Path(VAULT_PATH) / "Needs_Action" / fname
+    target = Path(VAULT_PATH) / "_System" / "Needs_Action" / fname
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         f"---\ntype: error\nreceived: {datetime.now(timezone.utc).isoformat()}Z\n---\n\n"
@@ -224,7 +224,7 @@ def _watchdog_loop(factories: dict, threads: dict) -> None:
 
 def _check_shutdown_signal() -> bool:
     """Return True if SIGNAL_shutdown_request_*.md detected in Signals/."""
-    signals_dir = Path(VAULT_PATH) / "Signals"
+    signals_dir = Path(VAULT_PATH) / "_System" / "Signals"
     if not signals_dir.exists():
         return False
     return any(signals_dir.glob("SIGNAL_shutdown_request_*.md"))
@@ -316,7 +316,7 @@ def _run_cron_skill(skill_name: str) -> None:
 def _create_social_trigger() -> None:
     vault = Path(VAULT_PATH)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    trigger_file = vault / "Needs_Action" / f"SOCIAL_POST_TRIGGER_linkedin_{ts}.md"
+    trigger_file = vault / "_System" / "Needs_Action" / f"SOCIAL_POST_TRIGGER_linkedin_{ts}.md"
     trigger_file.parent.mkdir(parents=True, exist_ok=True)
     trigger_file.write_text(
         f"---\ntype: social_post_trigger\nplatform: linkedin\nreceived: {datetime.now(timezone.utc).isoformat()}Z\n---\n\n"
@@ -349,8 +349,8 @@ def main() -> None:
     sys.path.insert(0, str(Path(__file__).parent))
 
     vault = Path(VAULT_PATH)
-    in_progress_cloud = vault / "In_Progress" / "cloud"
-    needs_action = vault / "Needs_Action"
+    in_progress_cloud = vault / "_System" / "In_Progress" / "cloud"
+    needs_action = vault / "_System" / "Needs_Action"
 
     signal.signal(signal.SIGTERM, lambda *_: _graceful_shutdown(in_progress_cloud, needs_action))
 

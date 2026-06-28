@@ -13,12 +13,13 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Paths the cloud agent must never write to (relative to VAULT_PATH).
+# Operational folders now live under _System/ (vault redesign 2026-06-28).
 # Violations produce a SINGLE_WRITER_VIOLATION signal and raise PermissionError.
 PROHIBITED_CLOUD_WRITE_PATHS: list[str] = [
     "Dashboard.md",
-    "Done",
-    "Approved",
-    "Rejected",
+    "_System/Done",
+    "_System/Approved",
+    "_System/Rejected",
 ]
 
 
@@ -28,16 +29,16 @@ def _is_prohibited(path: Path, vault_path: Path) -> bool:
         rel = path.resolve().relative_to(vault_path.resolve())
     except ValueError:
         return False
-    parts = rel.parts
-    if not parts:
-        return False
-    top = parts[0]
-    return top in PROHIBITED_CLOUD_WRITE_PATHS
+    rel_posix = rel.as_posix()
+    for prohibited in PROHIBITED_CLOUD_WRITE_PATHS:
+        if rel_posix == prohibited or rel_posix.startswith(prohibited + "/"):
+            return True
+    return False
 
 
 def _write_violation_signal(vault_path: Path, attempted_path: str) -> None:
     """Write a SINGLE_WRITER_VIOLATION signal to Signals/ directory."""
-    signals_dir = vault_path / "Signals"
+    signals_dir = vault_path / "_System" / "Signals"
     signals_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     signal_file = signals_dir / f"SINGLE_WRITER_VIOLATION_{ts}.md"
@@ -100,7 +101,7 @@ def check_sync_health(vault_path: str | Path, max_lag_seconds: int = 600) -> boo
         True if sync is healthy; False if stalled.
     """
     vault_root = Path(vault_path)
-    sync_log = vault_root / "Sync" / "sync.log"
+    sync_log = vault_root / "_System" / "Sync" / "sync.log"
 
     if not sync_log.exists():
         logger.warning("sync.log not found — cannot assess sync health")
@@ -128,7 +129,7 @@ def check_sync_health(vault_path: str | Path, max_lag_seconds: int = 600) -> boo
     lag = (now - last_ts).total_seconds()
 
     if lag > max_lag_seconds:
-        signals_dir = vault_root / "Signals"
+        signals_dir = vault_root / "_System" / "Signals"
         signals_dir.mkdir(parents=True, exist_ok=True)
         ts = now.strftime("%Y%m%dT%H%M%SZ")
         signal_file = signals_dir / f"SYNC_STALLED_{ts}.md"

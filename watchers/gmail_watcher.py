@@ -141,7 +141,7 @@ class GmailWatcher(BaseWatcher):
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         slug = _slugify(subject)
         filename = f"EMAIL_{ts}_{slug}.md"
-        task_path = Path(self.vault_path) / "Needs_Action" / filename
+        task_path = Path(self.vault_path) / "_System" / "Needs_Action" / filename
 
         received = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -175,6 +175,7 @@ New email from {sender} with subject: {subject}
             ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             error_path = (
                 Path(self.vault_path)
+                / "_System"
                 / "Needs_Action"
                 / f"ERROR_{ts}_{watcher_name}.md"
             )

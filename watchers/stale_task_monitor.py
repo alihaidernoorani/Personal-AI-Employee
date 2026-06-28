@@ -53,7 +53,7 @@ def _write_recovery_signal(vault_path: Path, task_filename: str) -> None:
     """Write SIGNAL_task_recovered_<ts>.md to Signals/ directory."""
     from watchers.cloud_boundary import safe_vault_write
 
-    signals_dir = vault_path / "Signals"
+    signals_dir = vault_path / "_System" / "Signals"
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     signal_file = signals_dir / f"SIGNAL_task_recovered_{ts}.md"
     content = (
@@ -80,8 +80,8 @@ def _check_stale_tasks(vault_path: Path) -> int:
 
     Returns number of tasks recovered.
     """
-    monitored_dir = vault_path / "In_Progress" / MONITORED_AGENT
-    needs_action_dir = vault_path / "Needs_Action"
+    monitored_dir = vault_path / "_System" / "In_Progress" / MONITORED_AGENT
+    needs_action_dir = vault_path / "_System" / "Needs_Action"
 
     if not monitored_dir.exists():
         return 0

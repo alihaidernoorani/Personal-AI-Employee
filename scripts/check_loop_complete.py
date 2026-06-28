@@ -54,7 +54,7 @@ def last_assistant_text(transcript: list) -> str:
 
 def loop_is_active() -> bool:
     """Return True if a LOOP_* state file exists in In_Progress/claude_code/."""
-    in_progress = VAULT / "In_Progress" / "claude_code"
+    in_progress = VAULT / "_System" / "In_Progress" / "claude_code"
     if not in_progress.exists():
         return False
     return any(in_progress.glob("LOOP_*_state.md"))

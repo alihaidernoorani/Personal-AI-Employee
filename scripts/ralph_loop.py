@@ -56,7 +56,7 @@ def now_stamp() -> str:
 
 def today_log() -> Path:
     date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    log_dir = VAULT / "Logs"
+    log_dir = VAULT / "_System" / "Logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir / f"{date}.json"
 
@@ -65,7 +65,7 @@ def append_log(entry: dict):
         f.write(json.dumps(entry) + "\n")
 
 def write_state_file(stamp: str, task_prompt: str, iteration: int, status: str, log_lines: list[str]) -> Path:
-    in_progress = VAULT / "In_Progress" / "claude_code"
+    in_progress = VAULT / "_System" / "In_Progress" / "claude_code"
     in_progress.mkdir(parents=True, exist_ok=True)
     path = in_progress / f"LOOP_{stamp}_state.md"
     content = f"""---
@@ -89,7 +89,7 @@ status: {status}
     return path
 
 def write_error_file(stamp: str, task_prompt: str, iterations: int, reason: str):
-    needs_action = VAULT / "Needs_Action"
+    needs_action = VAULT / "_System" / "Needs_Action"
     needs_action.mkdir(parents=True, exist_ok=True)
     path = needs_action / f"ERROR_{stamp}_loop-max-iterations.md"
     path.write_text(f"""---
@@ -196,7 +196,7 @@ def ralph_loop(task_prompt: str, max_iterations: int, completion_promise: str, v
 
     if found:
         # Move state file to Done/
-        done_dir = VAULT / "Done"
+        done_dir = VAULT / "_System" / "Done"
         done_dir.mkdir(parents=True, exist_ok=True)
         done_path = done_dir / f"DONE_LOOP_{stamp}_state.md"
         state_path.rename(done_path)

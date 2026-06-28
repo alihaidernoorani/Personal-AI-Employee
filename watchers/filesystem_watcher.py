@@ -53,7 +53,7 @@ class FilesystemWatcher(BaseWatcher):
 
     def __init__(self, vault_path: str):
         super().__init__(vault_path, check_interval=5)
-        self.inbox = self.vault_path / "Inbox"
+        self.inbox = self.vault_path / "_System" / "Inbox"
         self.inbox.mkdir(parents=True, exist_ok=True)
         self._observer = None
         # Idempotency registry — tracks filenames already processed

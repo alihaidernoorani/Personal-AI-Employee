@@ -41,8 +41,9 @@ class ApprovalWatcher(BaseWatcher):
             Path(__file__).parent.parent / "scripts" / "processed_approvals.json"
         )
         self._processed: set = self._load_registry()
-        self._approved_dir = Path(vault_path) / "Approved"
-        self._rejected_dir = Path(vault_path) / "Rejected"
+        self._approved_dir = Path(vault_path) / "_System" / "Approved"
+        self._rejected_dir = Path(vault_path) / "_System" / "Rejected"
+        self._pending_dir = Path(vault_path) / "_System" / "Pending_Approval"
 
     def _load_registry(self) -> set:
         try:
@@ -59,7 +60,16 @@ class ApprovalWatcher(BaseWatcher):
         )
 
     def check_for_updates(self) -> list:
-        """Scan Approved/ and Rejected/ for new files."""
+        """Scan Approved/ and Rejected/ for new files.
+
+        First bridges inline button clicks: any file in Pending_Approval/ whose
+        frontmatter `status` has been set to approved/rejected (e.g. by the
+        Dashboard or in-file Meta Bind buttons) is moved into the matching
+        folder so the folder-based flow below picks it up.
+        """
+        # Bridge button-driven status changes → folder moves (HITL fast-path)
+        self._scan_pending_status()
+
         new_triggers = []
 
         # Process approved files
@@ -106,6 +116,45 @@ class ApprovalWatcher(BaseWatcher):
 
         return new_triggers
 
+    def _scan_pending_status(self) -> None:
+        """Move Pending_Approval files whose frontmatter status is set.
+
+        Inline Approve/Reject buttons (Meta Bind `updateMetadata`) write
+        `status: approved` / `status: rejected` into the approval file without
+        moving it. This scan turns that status change into a folder move so the
+        existing Approved/ and Rejected/ logic fires. Files still marked
+        `pending` (or with no status) are left untouched.
+        """
+        try:
+            pending_files = sorted(self._pending_dir.glob("APPROVAL_*.md"))
+        except FileNotFoundError:
+            self._pending_dir.mkdir(parents=True, exist_ok=True)
+            return
+
+        for pending_file in pending_files:
+            try:
+                content = pending_file.read_text(encoding="utf-8")
+                frontmatter = _parse_frontmatter(content)
+                status = str(frontmatter.get("status", "")).strip().lower()
+
+                if status == "approved":
+                    dest_dir = self._approved_dir
+                elif status == "rejected":
+                    dest_dir = self._rejected_dir
+                else:
+                    continue
+
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                pending_file.replace(dest_dir / pending_file.name)
+                logger.info(
+                    f"Status '{status}' set on {pending_file.name} "
+                    f"→ moved to {dest_dir.name}/"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error scanning pending status for {pending_file.name}: {e}"
+                )
+
     def _write_action_trigger(
         self, approval_filename: str, action_type: str, parameters: dict, plan_file: str
     ) -> Path:
@@ -113,7 +162,7 @@ class ApprovalWatcher(BaseWatcher):
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         slug = action_type.replace("_", "-")
         filename = f"ACTION_{ts}_{slug}.md"
-        trigger_path = Path(self.vault_path) / "Needs_Action" / filename
+        trigger_path = Path(self.vault_path) / "_System" / "Needs_Action" / filename
 
         content = f"""---
 type: action_trigger
@@ -136,7 +185,7 @@ Execute the approved action referenced in `{approval_filename}`.
     def _log_rejection(self, filename: str) -> None:
         """Log rejection to Logs/."""
         try:
-            log_dir = Path(self.vault_path) / "Logs"
+            log_dir = Path(self.vault_path) / "_System" / "Logs"
             log_dir.mkdir(parents=True, exist_ok=True)
             log_file = log_dir / f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.json"
             entry = {

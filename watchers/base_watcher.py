@@ -16,8 +16,8 @@ logging.basicConfig(
 class BaseWatcher(ABC):
     def __init__(self, vault_path: str, check_interval: int = 60):
         self.vault_path = Path(vault_path)
-        self.needs_action = self.vault_path / "Needs_Action"
-        self.logs_dir = self.vault_path / "Logs"
+        self.needs_action = self.vault_path / "_System" / "Needs_Action"
+        self.logs_dir = self.vault_path / "_System" / "Logs"
         self.check_interval = check_interval
         self.logger = logging.getLogger(self.__class__.__name__)
 

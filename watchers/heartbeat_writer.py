@@ -28,7 +28,7 @@ HEARTBEAT_TTL_SECONDS = 900  # 15 minutes
 
 def _count_in_progress(vault_path: Path, subdir: str) -> int:
     """Count files in In_Progress/<subdir>/ excluding .gitkeep."""
-    target = vault_path / "In_Progress" / subdir
+    target = vault_path / "_System" / "In_Progress" / subdir
     if not target.exists():
         return 0
     return sum(1 for f in target.iterdir() if f.is_file() and f.name != ".gitkeep")
@@ -36,7 +36,7 @@ def _count_in_progress(vault_path: Path, subdir: str) -> int:
 
 def _last_sync_timestamp(vault_path: Path) -> str:
     """Return the timestamp of the last sync.log entry, or 'unknown'."""
-    sync_log = vault_path / "Sync" / "sync.log"
+    sync_log = vault_path / "_System" / "Sync" / "sync.log"
     if not sync_log.exists():
         return "unknown"
     lines = sync_log.read_text(encoding="utf-8").splitlines()
@@ -75,7 +75,7 @@ def _write_heartbeat(vault_path: Path, agent_id: str) -> None:
     """Write a HEARTBEAT_*.md file to Updates/."""
     from watchers.cloud_boundary import safe_vault_write
 
-    updates_dir = vault_path / "Updates"
+    updates_dir = vault_path / "_System" / "Updates"
     updates_dir.mkdir(parents=True, exist_ok=True)
 
     _cleanup_old_heartbeats(updates_dir)

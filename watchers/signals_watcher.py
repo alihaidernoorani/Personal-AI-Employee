@@ -58,7 +58,7 @@ def _write_needs_action_error(vault_path: Path, slug: str, message: str) -> None
     from watchers.cloud_boundary import safe_vault_write
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     fname = f"ERROR_{slug}_{ts}.md"
-    target = vault_path / "Needs_Action" / fname
+    target = vault_path / "_System" / "Needs_Action" / fname
     safe_vault_write(
         target,
         f"---\ntype: error\nreceived: {datetime.now(timezone.utc).isoformat()}Z\n---\n\n"
@@ -70,7 +70,7 @@ def _write_needs_action_error(vault_path: Path, slug: str, message: str) -> None
 
 def _write_needs_action_task(vault_path: Path, fname: str, content: str) -> None:
     from watchers.cloud_boundary import safe_vault_write
-    target = vault_path / "Needs_Action" / fname
+    target = vault_path / "_System" / "Needs_Action" / fname
     safe_vault_write(target, content, vault_path)
     logger.info(f"Task written to Needs_Action: {fname}")
 
@@ -139,7 +139,7 @@ def _route_signal(signal_type: str, meta: dict, signal_file: Path, vault_path: P
 
 def _check_signals(vault_path: Path) -> int:
     """Scan Signals/ for new signal files and route each. Returns count processed."""
-    signals_dir = vault_path / "Signals"
+    signals_dir = vault_path / "_System" / "Signals"
     if not signals_dir.exists():
         return 0
 
